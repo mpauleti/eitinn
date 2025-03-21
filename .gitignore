@@ -1,0 +1,5 @@
+# Ignore log files
+logs/
+
+# Ignore compiled Python files
+FEIT/__pycache__/
