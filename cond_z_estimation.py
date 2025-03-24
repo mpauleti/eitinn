@@ -1,4 +1,4 @@
-import FEIT
+import feit
 
 
 def main() -> None:
@@ -8,12 +8,12 @@ def main() -> None:
     N_out = 8  # Number of vertex on gaps
 
     ## Defining mesh
-    elec_mesh = FEIT.msd.get_tank_mesh(resolution, N_in, N_out)
+    elec_mesh = feit.msd.get_tank_mesh(resolution, N_in, N_out)
 
-    U0_bg, I_all = FEIT.msd.getdata_from_experiment("1_0")
+    U0_bg, I_all = feit.msd.getdata_from_experiment("1_0")
 
     print("Estimating...")
-    cond, z = FEIT.msd.estimate_cond_iter(U0_bg, I_all, elec_mesh)
+    cond, z = feit.msd.estimate_cond_iter(U0_bg, I_all, elec_mesh)
 
     print(f"cond estimation: {cond:.15f}")
     print(f"z estimation: {z:.15f}")

@@ -100,30 +100,34 @@ def calc_noise_level(U_noised: np.ndarray, I: np.ndarray, *, ord="fro") -> float
     return noise_level
 
 
-def estimate_cond_iter(U0, I_all, elec_mesh, z=None, *, zmin=1e-4):
+def estimate_cond_iter(U0, I_all, elec_mesh, z=None, *, zmin=1e-4, ord=2):
+    Q_DG = FunctionSpace(elec_mesh, "DG", 0)
+    # Solution Space Continous Galerkin
+    VD = FiniteElement("CG", elec_mesh.ufl_cell(), 1)
+
     if z is None:
         _, L = np.shape(I_all)
         z = np.full(L, zmin)
 
     # Define the functional
-    def func(zi, U0, I_all, elec_mesh, z):
+    def func(zi, U0, I_all, elec_mesh, z, ord):
         cond, z = estimate_cond(U0, I_all, elec_mesh, zi)
         z = np.maximum(zmin, z)
 
-        Q_DG = FunctionSpace(elec_mesh, "DG", 0)
         gamma = Function(Q_DG)
         gamma.vector()[:] = np.full(elec_mesh.num_cells(), cond, dtype=float)
 
-        FP = ForwardProblem(elec_mesh, z)
-        # Solution Space Continous Galerkin
-        VD = FiniteElement("CG", elec_mesh.ufl_cell(), 1)
-        _, U_arr = FP.solve_forward(VD, I_all, gamma)
+        fp = ForwardProblem(elec_mesh, z)
+
+        _, U_arr = fp.solve_forward(VD, I_all, gamma)
         U_arr = U_arr.flatten()
 
-        residual = np.linalg.norm(U_arr - U0) / np.linalg.norm(U0) * 100
+        residual = (
+            np.linalg.norm(U_arr - U0, ord=ord) / np.linalg.norm(U0, ord=ord) * 100
+        )
         return residual
 
-    result = scipy.optimize.minimize(func, zmin, args=(U0, I_all, elec_mesh, z))
+    result = scipy.optimize.minimize(func, zmin, args=(U0, I_all, elec_mesh, z, ord))
     z = result["x"]
 
     cond, z = estimate_cond(U0, I_all, elec_mesh, z)
@@ -135,16 +139,18 @@ def estimate_cond(U0, I_all, elec_mesh, z, *, is_finn_tank=True):
     Estimate the conductivity of the background based on noisy voltage measurements.
     Returns a tuple with conductivity and potential estimates.
     """
+    Q_DG = FunctionSpace(elec_mesh, "DG", 0)
+    # Solution Space Continous Galerkin
+    VD = FiniteElement("CG", elec_mesh.ufl_cell(), 1)
+
     l, L = np.shape(I_all)
     U0 = U0.reshape(l, L)
 
-    gamma = Function(FunctionSpace(elec_mesh, "DG", 0))
+    gamma = Function(Q_DG)
     gamma.vector()[:] = np.ones(elec_mesh.num_cells())
 
-    # Solution Space Continous Galerkin
-    VD = FiniteElement("CG", elec_mesh.ufl_cell(), 1)
-    FP = ForwardProblem(elec_mesh, z)
-    _, U = FP.solve_forward(VD, I_all, gamma)
+    fp = ForwardProblem(elec_mesh, z)
+    _, U = fp.solve_forward(VD, I_all, gamma)
 
     z0 = np.max(z)
 

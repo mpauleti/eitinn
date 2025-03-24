@@ -1,5 +1,5 @@
-import FEIT
-import FEIT.plot as fplot
+import feit
+import feit.plot as fplot
 
 import os
 import sys
@@ -19,17 +19,17 @@ def main() -> None:
     N_out = 8  # Number of vertex on gaps
 
     # Defining mesh
-    elec_mesh = FEIT.msd.get_tank_mesh(resolution, N_in, N_out)
+    elec_mesh = feit.msd.get_tank_mesh(resolution, N_in, N_out)
 
-    FEIT.mesh.print_mesh_config(elec_mesh)
+    feit.mesh.print_mesh_config(elec_mesh)
 
     ## Plotting mesh
     fplot.plot_electrodes_mesh(elec_mesh, save=True)
     fplot.plot_electrodes_mesh_with_tank(elec_mesh, save=True)
 
     #### Defining impedances, experiments and currents
-    background_value = FEIT.msd.BACK_COND
-    z = FEIT.msd.Z_IMP
+    background_value = feit.msd.BACK_COND
+    z = feit.msd.Z_IMP
     ####
 
     ## Iteration limits
@@ -39,12 +39,12 @@ def main() -> None:
     exp_cases = ["2_3", "4_1", "4_4"]
     methods = ["Lp|p=2", "TV1|p=2", "TV1|p=1.1"]
 
-    startALL = perf_counter()
+    start_all = perf_counter()
     for exp_case in exp_cases:
         ## Load experimental data
-        U_delta, I_all = FEIT.msd.getdata_from_experiment(exp_case)
+        U_delta, I_all = feit.msd.getdata_from_experiment(exp_case)
 
-        noise_level = FEIT.msd.calc_noise_level(U_delta, I_all)
+        noise_level = feit.msd.calc_noise_level(U_delta, I_all)
         print(f"Noise level (%): {noise_level * 100:.6f}")
 
         gamma_recs = []
@@ -54,35 +54,35 @@ def main() -> None:
             pp = float(pp.split("=")[1])
 
             #### EIT
-            IP = FEIT.IP.InverseProblem(elec_mesh, U_delta, I_all, z)
+            ip = feit.ip.InverseProblem(elec_mesh, U_delta, I_all, z)
 
             ## Solver Parameters
-            IP.set_solverconfig(step_limit=step_limit)
-            IP.set_inner_solverconfig(
+            ip.set_solverconfig(step_limit=step_limit)
+            ip.set_inner_solverconfig(
                 inner_method=inner_method, inner_step_limit=inner_step_limit
             )
-            IP.set_Lebesgue(pp, 2)
-            IP.set_penalty_beta(5)
+            ip.set_Lebesgue(pp, 2)
+            ip.set_penalty_beta(5)
 
             ## First step
             gamma_background = np.full(
                 elec_mesh.num_cells(), background_value, dtype=float
             )
-            IP.set_initial_guess(gamma_background)
+            ip.set_initial_guess(gamma_background)
 
             ## Noise Parameters
             tau = 1.5
-            IP.set_noise_parameters(tau, noise_level)
+            ip.set_noise_parameters(tau, noise_level)
 
             ## Solver
             space_name = "hilbert" if pp == 2 else "banach"
             filename = f"logs/log_{exp_case}_{inner_method}_{space_name}.txt"
 
-            solve_IP_with_log(IP, filename)
+            solve_ip_with_log(ip, filename)
 
-            gamma_rec = np.copy(IP.gamma_all[-1])
+            gamma_rec = np.copy(ip.gamma_all[-1])
             gamma_recs.append(gamma_rec)
-            residual_list.append(IP.res_list)
+            residual_list.append(ip.res_list)
 
         fplot.plot_reconstructions(
             gamma_recs,
@@ -112,17 +112,17 @@ def main() -> None:
             filename=f"residuals/residuals_{exp_case}.pdf",
         )
 
-    endALL = perf_counter()
-    print(f"Elapsed time (ALL): {endALL - startALL:.4f}")
+    end_all = perf_counter()
+    print(f"Elapsed time (ALL): {end_all - start_all:.4f}")
 
     return
 
 
-def solve_IP_with_log(IP, filename):
-    IP.solve_inverse = logger(filename)(IP.solve_inverse)
-    IP.solve_inverse()
+def solve_ip_with_log(ip, filename):
+    ip.solve_inverse = logger(filename)(ip.solve_inverse)
+    ip.solve_inverse()
 
-    msg = f"Sum of all inner steps: {np.sum(IP.inner_step_list)}"
+    msg = f"Sum of all inner steps: {np.sum(ip.inner_step_list)}"
     print(msg)
     with open(filename, "a") as f:
         f.write(msg)
