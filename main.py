@@ -76,7 +76,7 @@ def main() -> None:
 
             ## Solver
             space_name = "hilbert" if pp == 2 else "banach"
-            filename = f"logs/log_{exp_case}_{inner_method}_{space_name}.txt"
+            filename = f"logs/exp_{exp_case}_{inner_method}_{space_name}.log"
 
             solve_ip_with_log(ip, filename)
 

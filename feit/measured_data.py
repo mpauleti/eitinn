@@ -127,7 +127,9 @@ def estimate_cond_iter(U0, I_all, elec_mesh, z=None, *, zmin=1e-4, ord=2):
         )
         return residual
 
-    result = scipy.optimize.minimize(func, zmin, args=(U0, I_all, elec_mesh, z, ord))
+    result = scipy.optimize.minimize(
+        func, zmin, method="BFGS", args=(U0, I_all, elec_mesh, z, ord)
+    )
     z = result["x"]
 
     cond, z = estimate_cond(U0, I_all, elec_mesh, z)

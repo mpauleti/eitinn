@@ -2,4 +2,4 @@
 logs/
 
 # Ignore compiled Python files
-FEIT/__pycache__/
+feit/__pycache__/

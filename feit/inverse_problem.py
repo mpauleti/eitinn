@@ -285,7 +285,7 @@ class InverseProblem(ForwardProblem):
             # objfunc = lambda x: self.__objfunc(x, xi, L)
             objgrad = lambda x: self.__objgrad(x, xi, L)
 
-            return _minacc(objgrad, x0, ord=self.Lp_space)
+            return _minacc(objgrad, x0, ord=self.Lp_space)[0]
 
     # def __eval_TV(self, x, L):
     #     EPS = self.TV_EPS
@@ -633,8 +633,8 @@ def _subL1(x):
 
 
 def _minacc(
-    fgrad: callable,
-    x0: np.ndarray,
+    fgrad,
+    x0,
     *,
     s=1e-4,
     tol=1e-6,
@@ -659,7 +659,7 @@ def _minacc(
 
         # Convergence check
         xdiff = xnew - xt
-        if np.linalg.norm(xdiff, ord=ord) / np.linalg.norm(xt, ord=ord) <= tol:
+        if np.linalg.norm(xdiff, ord=ord) <= tol * np.linalg.norm(xt, ord=ord):
             xt = xnew  # Update before exiting
             t += 1
             break
@@ -674,4 +674,4 @@ def _minacc(
 
         t += 1
 
-    return xt
+    return xt, t
