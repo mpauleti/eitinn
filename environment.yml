@@ -3,9 +3,9 @@ channels:
   - conda-forge
   - defaults
 dependencies:
-  - python=3.11.11
+  - python=3.11.10
   - numpy=1.26.4
-  - scipy=1.15.1
-  - matplotlib=3.10.0
+  - scipy=1.14.1
+  - matplotlib=3.9.2
   - fenics=2019.1.0
   - mshr=2019.1.0
