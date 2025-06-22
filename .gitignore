@@ -1,5 +1,12 @@
 # Ignore log files
 logs/
+*.log
 
 # Ignore compiled Python files
-feit/__pycache__/
+__pycache__/
+*.pyc
+
+# Plots
+/electrodes-mesh/
+/reconstructions/
+/residuals/

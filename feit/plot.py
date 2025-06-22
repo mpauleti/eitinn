@@ -60,6 +60,7 @@ def plot_function(
     if save:
         fig.savefig(filename, dpi=300, bbox_inches="tight")
 
+    plt.close(fig)
     return
 
 
@@ -115,6 +116,7 @@ def plot_function_with_phantom(
     if save:
         fig.savefig(filename, dpi=300, bbox_inches="tight")
 
+    plt.close(fig)
     return
 
 
@@ -126,6 +128,8 @@ def plot_reconstructions(
     mesh_display="thin",  # "nil", "thin" or "thick"
     linewidth_mesh=0.1,  # only used for "thick" display
     fontsize=14,
+    inctitle="Figure",
+    incstart=1,
     colorbar_display="individual",  # "individual" or "aio" (all in one)
     colorbar_fontsize=10,
     single_figsize=5,
@@ -208,7 +212,7 @@ def plot_reconstructions(
                 )  # Adjust tick label size
                 # cbar.update_ticks()  # Refresh the ticks
 
-        axi.set_title(f"Method {i}", fontsize=fontsize)
+        axi.set_title(f"{inctitle} {i + incstart - 1}", fontsize=fontsize)
 
         if not axis:
             axi.set_xticks([])  # Remove x ticks
@@ -218,6 +222,7 @@ def plot_reconstructions(
     if save:
         fig.savefig(filename, dpi=300, bbox_inches="tight")
 
+    plt.close(fig)
     return
 
 
@@ -292,9 +297,10 @@ def plot_residuals(
 
         ax.legend(fontsize=legend_fontsize, frameon=True, facecolor="white")
 
-        if save:
-            fig.savefig(filename, dpi=300, bbox_inches="tight")
+    if save:
+        fig.savefig(filename, dpi=300, bbox_inches="tight")
 
+    plt.close(fig)
     return
 
 
@@ -376,6 +382,7 @@ def plot_electrodes_mesh(
     if save:
         fig.savefig(filename, dpi=300, bbox_inches="tight")
 
+    plt.close(fig)
     return
 
 
@@ -462,6 +469,7 @@ def plot_electrodes_mesh_with_tank(
     if save:
         fig.savefig(filename, dpi=300, bbox_inches="tight")
 
+    plt.close(fig)
     return
 
 

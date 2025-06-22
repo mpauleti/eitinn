@@ -36,9 +36,9 @@ If you use this program in your work, please cite:
 
 ```
 @article{pmr2023,
-  title={Inexact Newton regularizations with uniformly convex stability terms: a unified convergence analysis},
-  author={Pauleti, Marco and Margotti, F{\'a}bio and Rieder, Andreas},
-  year={2023},
-  url={https://doi.org/10.5445/IR/1000157900}
+  title  = {Inexact Newton regularizations with uniformly convex stability terms: a unified convergence analysis},
+  author = {Pauleti, Marco and Margotti, F{\'a}bio and Rieder, Andreas},
+  year   = {2023},
+  url    = {https://doi.org/10.5445/IR/1000157900}
 }
 ```

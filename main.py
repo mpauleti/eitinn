@@ -10,7 +10,9 @@ import numpy as np
 
 def main() -> None:
     os.makedirs("logs", exist_ok=True)
+    os.makedirs("electrodes-mesh", exist_ok=True)
     os.makedirs("reconstructions", exist_ok=True)
+    os.makedirs("reconstructions/iterations", exist_ok=True)
     os.makedirs("residuals", exist_ok=True)
 
     # Mesh Parameters
@@ -24,8 +26,12 @@ def main() -> None:
     feit.mesh.print_mesh_config(elec_mesh)
 
     ## Plotting mesh
-    fplot.plot_electrodes_mesh(elec_mesh, save=True)
-    fplot.plot_electrodes_mesh_with_tank(elec_mesh, save=True)
+    fplot.plot_electrodes_mesh(
+        elec_mesh, save=True, filename="electrodes-mesh/electrodes_mesh.pdf"
+    )
+    fplot.plot_electrodes_mesh_with_tank(
+        elec_mesh, save=True, filename="electrodes-mesh/electrodes_mesh_tank.pdf"
+    )
 
     #### Defining impedances, experiments and currents
     background_value = feit.msd.BACK_COND
@@ -84,6 +90,33 @@ def main() -> None:
             gamma_recs.append(gamma_rec)
             residual_list.append(ip.res_list)
 
+            # Plot iteration history
+            fplot.plot_reconstructions(
+                ip.gamma_all,
+                elec_mesh,
+                exp_case,
+                save=True,
+                filename=f"reconstructions/iterations/recs_{exp_case}_{inner_method}_{space_name}_all.pdf",
+                cmap="turbo",
+                mesh_display="nil",
+                colorbar_display="aio",
+                inctitle="Iteration",
+                incstart=0,
+            )
+
+            fplot.plot_reconstructions(
+                ip.gamma_all,
+                elec_mesh,
+                exp_case,
+                save=True,
+                filename=f"reconstructions/iterations/recs_{exp_case}_{inner_method}_{space_name}_ind.pdf",
+                cmap="turbo",
+                mesh_display="nil",
+                colorbar_display="individual",
+                inctitle="Iteration",
+                incstart=0,
+            )
+
         fplot.plot_reconstructions(
             gamma_recs,
             elec_mesh,
@@ -93,6 +126,8 @@ def main() -> None:
             cmap="turbo",
             mesh_display="nil",
             colorbar_display="aio",
+            inctitle="Method",
+            incstart=1,
         )
 
         fplot.plot_reconstructions(
@@ -100,10 +135,12 @@ def main() -> None:
             elec_mesh,
             exp_case,
             save=True,
-            filename=f"reconstructions/recs_{exp_case}_all_ind.pdf",
+            filename=f"reconstructions/recs_{exp_case}_ind.pdf",
             cmap="turbo",
             mesh_display="nil",
             colorbar_display="individual",
+            inctitle="Method",
+            incstart=1,
         )
 
         fplot.plot_residuals(
