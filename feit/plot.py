@@ -3,305 +3,183 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from matplotlib.patches import Arc
-from matplotlib.axes import Axes
 from matplotlib.ticker import MultipleLocator
 
+from typing import Literal
 
 from fenics import FunctionSpace, Function
 from fenics import plot as fxplot
 
 
-# Define possible markers, colors and linestyles
-markers_options = ["o", "s", "P", "v", "^", "<", ">", "d", "h", "*"]
-colors_options = [
-    "blue",
-    "orange",
-    "green",
-    "red",
-    "purple",
-    "brown",
-    "pink",
-    "gray",
-    "olive",
-    "cyan",
-]
-linestyles_options = ["dashed", "dashdot", "dotted", "solid"]
-
-
-def plot_function(
-    function,
-    elec_mesh,
+def plot_functions(
+    funcs,
     *,
-    title="",
-    fontsize=16,
-    linewidth_mesh=0.1,
-    figsize=(5, 5),
-    cmap="turbo",
-    bar_axes=[0.9015, 0.2205, 0.0175, 0.5605],
-    axis=False,
-    save=False,
-    filename="figure.pdf",
-):
-    fig, ax = plt.subplots(figsize=figsize)
-
-    p = fxplot(function)
-    fxplot(elec_mesh, linewidth=linewidth_mesh)
-
-    p.set_cmap(cmap)
-    fig.colorbar(p, cax=fig.add_axes(bar_axes), orientation="vertical")
-
-    ax.set_title(title, fontsize=fontsize)
-
-    if not axis:
-        ax.set_xticks([])  # Remove x ticks
-        ax.set_yticks([])  # Remove y ticks
-        ax.set_frame_on(False)  # Disable the frame
-
-    if save:
-        fig.savefig(filename, dpi=300, bbox_inches="tight")
-
-    plt.close(fig)
-    return
-
-
-def plot_function_with_phantom(
-    function,
-    elec_mesh,
-    exp_case,
-    *,
-    title="",
+    fmesh=None,
+    titles=None,
     fontsize=14,
-    linewidth_mesh=0.1,
-    single_figsize=5,
+    single_figsize=(4.8, 4.8),
+    fig_max_cols=5,
+    mesh_display: Literal["nil", "thin", "thick"] = "nil",
+    linewidth_mesh=0.5,  # only used when mesh_display == "thick"
+    with_colorbar=True,
+    colorbar_fontsize=10,
+    colorbar_display: Literal["ind", "all"] = "ind",
     cmap="turbo",
-    bar_axes=[0.9015, 0.2205, 0.0175, 0.5605],
-    axis=False,
+    with_phantom=False,
+    exp_case="",
+    with_axis=False,
     save=False,
-    filename="figure.pdf",
+    filename="functions.pdf",
+    close_fig=True,
 ):
-    nr, nc = 1, 2
-    figsize = (nc * single_figsize, single_figsize)
+    try:
+        NFUNC = len(funcs)
+    except:
+        NFUNC = 1
+        funcs = [funcs]
 
-    ax: tuple[Axes, ...]
+    if isinstance(titles, str):
+        titles = [titles]
+
+    if titles is None:
+        titles = ["" for _ in range(NFUNC)]
+
+    nr, nc = (1, NFUNC + 1) if with_phantom else (1, NFUNC)
+    nr, nc = _adjust_dim((nr, nc), fig_max_cols)
+
+    w, h = single_figsize
+    figsize = (nc * w, nr * h)
+
     fig, ax = plt.subplots(nrows=nr, ncols=nc, figsize=figsize)
-    ax0, ax1 = ax
+    fig.tight_layout()
 
-    ## Phantom first
-    photo_name = get_file_path(f"eit_data/target_photos/fantom_{exp_case}.jpg")
-    img = mpimg.imread(photo_name)
-    ax0.imshow(img)
-    ax0.set_title("Inclusions", fontsize=fontsize)
+    axs: tuple[plt.Axes, ...]
+    axs = (ax,) if isinstance(ax, plt.Axes) else tuple(ax.flatten())
 
-    ## Reconstruction
-    plt.sca(ax1)  # Set 'ax1' as the active axis
+    if with_phantom:
+        ax0 = axs[0]  ## Phantom first
 
-    p = fxplot(function)
-    fxplot(elec_mesh, linewidth=linewidth_mesh)
+        photo_name = _get_filepath(f"eit_data/target_photos/fantom_{exp_case}.jpg")
+        img = mpimg.imread(photo_name)
+        ax0.imshow(img)
+        ax0.set_title("Inclusions", fontsize=fontsize)
 
-    p.set_cmap(cmap)
-    fig.colorbar(p, cax=fig.add_axes(bar_axes), orientation="vertical")
+    if with_colorbar and colorbar_display == "all":
+        clim_min = np.min([func.vector().get_local().min() for func in funcs])
+        clim_max = np.max([func.vector().get_local().max() for func in funcs])
 
-    ax1.set_title(title, fontsize=fontsize)
+    istart = 1 if with_phantom else 0
+    for i, func in enumerate(funcs, istart):
+        axi = axs[i]
+        plt.sca(axi)  # Set 'axi' as the active axis
 
-    if not axis:
-        ax0.set_xticks([])  # Remove x ticks
-        ax1.set_xticks([])
+        func_mesh = fmesh if fmesh is not None else func.function_space().mesh()
 
-        ax0.set_yticks([])  # Remove y ticks
-        ax1.set_yticks([])
+        p = _plot_mesh_handler(
+            func,
+            func_mesh,
+            mesh_display,
+            linewidth_mesh,
+        )
+        p.set_cmap(cmap)
 
-        ax0.set_frame_on(False)  # Disable the frame
-        ax1.set_frame_on(False)
+        if not with_colorbar:
+            pass  # Nothing to do, skip all colorbar-related logic
+        elif colorbar_display == "ind":
+            _create_colorbar(p, fig, axi, colorbar_fontsize=colorbar_fontsize)
+        elif colorbar_display == "all":
+            p.set_clim(clim_min, clim_max)
+
+            last_subplot = i == NFUNC + istart - 1
+            if last_subplot:
+                # Create a common colorbar
+                _create_colorbar(
+                    p, fig, ax=axs, colorbar_fontsize=colorbar_fontsize, pad=0.01
+                )
+
+        axi.set_title(titles[i - istart], fontsize=fontsize)
+
+    if not with_axis:
+        _disable_axis(axs)
 
     if save:
-        fig.savefig(filename, dpi=300, bbox_inches="tight")
+        _save_fig(fig, filename)
 
-    plt.close(fig)
+    if close_fig:
+        plt.close(fig)
+
     return
+
+
+def _adjust_dim(dim, max_cols):
+    r, c = dim
+    if c > max_cols:
+        total = r * c
+        c = max_cols
+        while r * c < total:
+            r += 1
+    return r, c
 
 
 def plot_reconstructions(
     reconstructions,
     elec_mesh,
-    exp_case,
     *,
-    mesh_display="thin",  # "nil", "thin" or "thick"
-    linewidth_mesh=0.1,  # only used for "thick" display
+    titles=None,
     fontsize=14,
-    inctitle="Figure",
-    incstart=1,
-    colorbar_display="individual",  # "individual" or "aio" (all in one)
+    single_figsize=(4.8, 4.8),
+    fig_max_cols=5,
+    mesh_display: Literal["nil", "thin", "thick"] = "nil",
+    linewidth_mesh=0.5,  # only used when mesh_display == "thick"
+    with_colorbar=True,
     colorbar_fontsize=10,
-    single_figsize=5,
+    colorbar_display: Literal["ind", "all"] = "ind",
     cmap="turbo",
-    axis=False,
+    with_phantom=False,
+    exp_case="",
+    with_axis=False,
     save=False,
-    filename="figure.pdf",
+    filename="reconstructions.pdf",
+    close_fig=True,
 ):
-    if colorbar_display == "aio":
-        clim_min = np.min([np.min(rec) for rec in reconstructions])
-        clim_max = np.max([np.max(rec) for rec in reconstructions])
-
-    nr, nc = 1, len(reconstructions) + 1
-    figsize = (nc * single_figsize, single_figsize)
-
-    ax: tuple[Axes, ...]
-    fig, ax = plt.subplots(nrows=nr, ncols=nc, figsize=figsize)
-
-    ## Phantom first
-    ax0 = ax[0]
-    photo_name = get_file_path(f"eit_data/target_photos/fantom_{exp_case}.jpg")
-    img = mpimg.imread(photo_name)
-    ax0.imshow(img)
-    ax0.set_title("Inclusions", fontsize=fontsize)
-
-    if not axis:
-        ax0.set_xticks([])  # Remove x ticks
-        ax0.set_yticks([])  # Remove y ticks
-        ax0.set_frame_on(False)  # Disable the frame
-
-    ## Reconstructions
+    ## Transform vectors to functions
+    funcs = []
     Q_DG = FunctionSpace(elec_mesh, "DG", 0)
-    for i, reconstruction in enumerate(reconstructions, 1):
-        axi = ax[i]
-        plt.sca(axi)  # Set 'axi' as the active axis
-
-        ## Transform vector to function
+    for reconstruction in reconstructions:
         func = Function(Q_DG)
         func.vector()[:] = reconstruction
-        ##
 
-        if mesh_display == "nil":
-            p = fxplot(func)
-            p.set_rasterized(True)
-        if mesh_display == "thin":
-            p = fxplot(func)
-        if mesh_display == "thick":
-            p = fxplot(func)
-            fxplot(elec_mesh, linewidth=linewidth_mesh)
+        funcs.append(func)
 
-        if colorbar_display == "individual":
-            p.set_cmap(cmap)
-
-            # Create a new colorbar for each subplot
-            cbar = fig.colorbar(
-                p, ax=axi, orientation="vertical", fraction=0.046, pad=0.04
-            )
-
-            cbar.outline.set_visible(True)  # Ensure the outline is visible
-            cbar.ax.yaxis.set_ticks_position("right")  # Set tick position
-            cbar.ax.yaxis.set_visible(True)  # Ensure axis is visible
-            cbar.ax.tick_params(labelsize=colorbar_fontsize)  # Adjust tick label size
-            # cbar.update_ticks()  # Refresh the ticks
-
-        if colorbar_display == "aio":
-            p.set_cmap(cmap)
-            p.set_clim(clim_min, clim_max)
-
-            if i == len(reconstructions):
-                # Create a colorbar only for the last subplot
-                cbar = fig.colorbar(
-                    p, ax=axi, orientation="vertical", fraction=0.046, pad=0.04
-                )
-
-                cbar.outline.set_visible(True)  # Ensure the outline is visible
-                cbar.ax.yaxis.set_ticks_position("right")  # Set tick position
-                cbar.ax.yaxis.set_visible(True)  # Ensure axis is visible
-                cbar.ax.tick_params(
-                    labelsize=colorbar_fontsize
-                )  # Adjust tick label size
-                # cbar.update_ticks()  # Refresh the ticks
-
-        axi.set_title(f"{inctitle} {i + incstart - 1}", fontsize=fontsize)
-
-        if not axis:
-            axi.set_xticks([])  # Remove x ticks
-            axi.set_yticks([])  # Remove y ticks
-            axi.set_frame_on(False)  # Disable the frame
-
-    if save:
-        fig.savefig(filename, dpi=300, bbox_inches="tight")
-
-    plt.close(fig)
+    plot_functions(
+        funcs,
+        fmesh=elec_mesh,
+        titles=titles,
+        fontsize=fontsize,
+        single_figsize=single_figsize,
+        fig_max_cols=fig_max_cols,
+        mesh_display=mesh_display,
+        linewidth_mesh=linewidth_mesh,
+        with_colorbar=with_colorbar,
+        colorbar_fontsize=colorbar_fontsize,
+        colorbar_display=colorbar_display,
+        cmap=cmap,
+        with_phantom=with_phantom,
+        exp_case=exp_case,
+        with_axis=with_axis,
+        save=save,
+        filename=filename,
+        close_fig=close_fig,
+    )
     return
 
 
-def plot_residuals(
-    residual_list,
-    *,
-    title="",
-    figsize=(5, 5),
-    fontsize=14,
-    tick_fontsize=12,
-    legend_fontsize=12,
-    linewidth=2,
-    save=False,
-    filename="residuals.pdf",
-):
-    with plt.style.context("seaborn-v0_8-darkgrid"):
-        fig, ax = plt.subplots(figsize=figsize)
+# Define possible markers, colors and linestyles
+_markers = ["P", "o", "v", "s"]
+_colors = ["blue", "orange", "purple", "green"]
+_linestyles = ["dashed", "dashdot", "dotted", "solid"]
 
-        ax.set_title(title, fontsize=fontsize)
-        ax.set_ylabel(r"Nonlinear Residual $(\%)$", fontsize=fontsize)
-        ax.set_xlabel("Iteration", fontsize=fontsize)
-
-        ax.tick_params(axis="x", labelsize=tick_fontsize)
-        ax.tick_params(axis="y", labelsize=tick_fontsize)
-
-        # min_len = min(map(len, residual_list))
-        max_len = max(map(len, residual_list))
-
-        # xtick_positions = np.linspace(0, max_len, num_xticks, dtype=int)
-        # xtick_positions = np.unique(xtick_positions)
-
-        # ax.set_xticks(xtick_positions)
-
-        iter_mult = _calc_iter_mult(max_len)
-        fig.gca().xaxis.set_major_locator(MultipleLocator(iter_mult))
-
-        if len(residual_list) == 3:  # Hardcoded for 3 methods...
-            ax.plot(
-                residual_list[0],
-                linestyle="dashed",
-                marker="P",
-                color="blue",
-                linewidth=linewidth,
-                label="Method 1",
-            )
-            ax.plot(
-                residual_list[1],
-                linestyle="dashdot",
-                marker="o",
-                color="orange",
-                linewidth=linewidth,
-                label="Method 2",
-            )
-            ax.plot(
-                residual_list[2],
-                linestyle="dotted",
-                marker="v",
-                color="purple",
-                linewidth=linewidth,
-                label="Method 3",
-            )
-        else:
-            for i, residual in enumerate(residual_list, 1):
-                ax.plot(
-                    residual,
-                    linestyle=np.random.choice(linestyles_options),
-                    marker=np.random.choice(markers_options),
-                    color=np.random.choice(colors_options),
-                    linewidth=linewidth,
-                    label=f"Method {i}",
-                )
-
-        ax.legend(fontsize=legend_fontsize, frameon=True, facecolor="white")
-
-    if save:
-        fig.savefig(filename, dpi=300, bbox_inches="tight")
-
-    plt.close(fig)
-    return
+_styles = list(zip(_linestyles, _markers, _colors))
 
 
 def _calc_iter_mult(max_len):
@@ -317,102 +195,105 @@ def _calc_iter_mult(max_len):
     return iter_mult
 
 
-def plot_electrodes_mesh(
-    elec_mesh,
+def plot_residuals(
+    residuals,
     *,
-    linewidth_mesh=0.5,
-    linewidth_elec=5,
-    figsize=(5, 5),
-    fontsize=10,
-    elec_num=True,
-    axis=False,
+    title="",
+    fontsize=14,
+    tick_fontsize=12,
+    legend_fontsize=12,
+    figsize=(6.4, 4.8),
+    linewidth=2,
     save=False,
-    filename="electrodes_mesh.pdf",
+    filename="residuals.pdf",
+    close_fig=True,
 ):
-    fig, ax = plt.subplots(figsize=figsize)
+    with plt.style.context("seaborn-v0_8-darkgrid"):
+        fig, ax = plt.subplots(figsize=figsize)
+        fig.tight_layout()
 
-    radius = elec_mesh.radius
-    theta_vec = np.degrees(
-        np.array(elec_mesh.electrodes.position)
-    )  # Convert angles from radians to degrees.
+        ax.set_title(title, fontsize=fontsize)
+        ax.set_ylabel(r"Nonlinear Residual $(\%)$", fontsize=fontsize)
+        ax.set_xlabel("Iteration", fontsize=fontsize)
 
-    for index, theta in enumerate(theta_vec):
-        theta_start, theta_end = theta[0], theta[1]
-        theta_center = (
-            (np.abs(theta_start - theta_end) / 2 + theta_start) / 360 * (2 * np.pi)
-        )
+        ax.tick_params(axis="x", labelsize=tick_fontsize)
+        ax.tick_params(axis="y", labelsize=tick_fontsize)
 
-        # Plotting arc
-        arc = Arc(
-            (0, 0),
-            2 * radius * 1.01,
-            2 * radius * 1.01,
-            angle=0,
-            theta1=theta_start,
-            theta2=theta_end,
-            linewidth=linewidth_elec,
-            color="black",
-        )
-        ax.add_artist(arc)
+        max_len = max(map(len, residuals))
 
-        # Plotting electrode number
-        if elec_num:
-            x, y = (
-                radius * np.cos(theta_center) * 1.1,
-                radius * np.sin(theta_center) * 1.1,
-            )
-            ax.annotate(
-                index + 1,
-                (x, y),
-                color="black",
-                weight="bold",
-                fontsize=fontsize,
-                ha="center",
-                va="center",
-            )
+        iter_mult = _calc_iter_mult(max_len)
+        fig.gca().xaxis.set_major_locator(MultipleLocator(iter_mult))
 
-    ax.set_aspect("equal")  # Enforce equal aspect ratio
-    fxplot(elec_mesh, linewidth=linewidth_mesh)
+        if len(residuals) <= 4:
+            for i, residual in enumerate(residuals, 1):
+                linestyle, marker, color = _styles[i - 1]
+                ax.plot(
+                    residual,
+                    linestyle=linestyle,
+                    marker=marker,
+                    color=color,
+                    linewidth=linewidth,
+                    label=f"Method {i}",
+                )
+        else:
+            for i, residual in enumerate(residuals, 1):
+                ax.plot(
+                    residual,
+                    linewidth=linewidth,
+                    label=f"Method {i}",
+                )
 
-    if not axis:
-        ax.set_xticks([])  # Remove x ticks
-        ax.set_yticks([])  # Remove y ticks
-        ax.set_frame_on(False)  # Disable the frame
+        ax.legend(fontsize=legend_fontsize, frameon=True, facecolor="white")
 
     if save:
-        fig.savefig(filename, dpi=300, bbox_inches="tight")
+        _save_fig(fig, filename)
 
-    plt.close(fig)
+    if close_fig:
+        plt.close(fig)
+
     return
 
 
-def plot_electrodes_mesh_with_tank(
+def plot_electrodes_mesh(
     elec_mesh,
     *,
+    title="",
+    fontsize=14,
+    single_figsize=(4.8, 4.8),
     linewidth_mesh=0.5,
     linewidth_elec=3,
-    single_figsize=5,
-    fontsize=6,
     elec_num=True,
-    axis=False,
+    elec_numsize=6,
+    with_tank=False,
+    with_axis=False,
     save=False,
-    filename="electrodes_mesh_tank.pdf",
+    filename="electrodes_mesh.pdf",
+    close_fig=True,
 ):
-    nr, nc = 1, 2
-    figsize = (nc * single_figsize, single_figsize)
+    nr, nc = (1, 2) if with_tank else (1, 1)
 
-    ax: tuple[Axes, ...]
+    w, h = single_figsize
+    figsize = (nc * w, h)
+
     fig, ax = plt.subplots(nrows=nr, ncols=nc, figsize=figsize)
-    ax0, ax1 = ax
+    fig.tight_layout()
 
-    ## Tank first
-    photo_name = get_file_path(f"eit_data/target_photos/fantom_1_0.jpg")
-    img = mpimg.imread(photo_name)
-    ax0.imshow(img)
+    fig.suptitle(title, fontsize=fontsize)
 
-    ## Mesh
+    axs: tuple[plt.Axes, ...]
+    axs = (ax,) if isinstance(ax, plt.Axes) else tuple(ax)
+
+    if with_tank:
+        ax0 = axs[0]  ## Tank first
+
+        photo_name = _get_filepath(f"eit_data/target_photos/fantom_1_0.jpg")
+        img = mpimg.imread(photo_name)
+        ax0.imshow(img)
+
+    ax1 = axs[1] if with_tank else axs[0]
     plt.sca(ax1)  # Set 'ax1' as the active axis
 
+    ## Mesh
     radius = elec_mesh.radius
     theta_vec = np.degrees(
         np.array(elec_mesh.electrodes.position)
@@ -448,7 +329,7 @@ def plot_electrodes_mesh_with_tank(
                 (x, y),
                 color="black",
                 weight="bold",
-                fontsize=fontsize,
+                fontsize=elec_numsize,
                 ha="center",
                 va="center",
             )
@@ -456,27 +337,71 @@ def plot_electrodes_mesh_with_tank(
     ax1.set_aspect("equal")  # Enforce equal aspect ratio
     fxplot(elec_mesh, linewidth=linewidth_mesh)
 
-    if not axis:
-        ax0.set_xticks([])  # Remove x ticks
-        ax1.set_xticks([])
-
-        ax0.set_yticks([])  # Remove y ticks
-        ax1.set_yticks([])
-
-        ax0.set_frame_on(False)  # Disable the frame
-        ax1.set_frame_on(False)
+    if not with_axis:
+        _disable_axis(axs)
 
     if save:
-        fig.savefig(filename, dpi=300, bbox_inches="tight")
+        _save_fig(fig, filename)
 
-    plt.close(fig)
+    if close_fig:
+        plt.close(fig)
+
     return
 
 
-def get_file_path(path):
+def _plot_mesh_handler(func, elec_mesh, mesh_display, linewidth_mesh):
+    if mesh_display == "nil":
+        p = fxplot(func)
+        p.set_rasterized(True)
+
+    if mesh_display == "thin":
+        p = fxplot(func)
+
+    if mesh_display == "thick":
+        p = fxplot(func)
+        fxplot(elec_mesh, linewidth=linewidth_mesh)
+
+    return p
+
+
+def _create_colorbar(
+    p,
+    fig,
+    ax,
+    *,
+    orientation="vertical",
+    colorbar_fontsize=10,
+    fraction=0.046,
+    pad=0.04,
+    shrink=0.8,
+):
+    cbar = fig.colorbar(
+        p, ax=ax, orientation=orientation, fraction=fraction, pad=pad, shrink=shrink
+    )
+    cbar.outline.set_visible(True)  # Ensure the outline is visible
+    cbar.ax.yaxis.set_ticks_position("right")  # Set tick position
+    cbar.ax.yaxis.set_visible(True)  # Ensure axis is visible
+    cbar.ax.tick_params(labelsize=colorbar_fontsize)  # Adjust tick label size
+    return
+
+
+def _disable_axis(axs: tuple[plt.Axes, ...]):
+    for ax in axs:
+        ax.set_xticks([])  # Remove x ticks
+        ax.set_yticks([])  # Remove y ticks
+        ax.set_frame_on(False)  # Disable the frame
+    return
+
+
+def _save_fig(fig, filename, *, dpi=300):
+    fig.savefig(filename, dpi=dpi, bbox_inches="tight")
+    return
+
+
+def _get_filepath(path):
     # Get the directory where this function is defined
     current_dir = os.path.dirname(os.path.abspath(__file__))
     # Construct the path to a file relative to this directory
-    file_path = os.path.join(current_dir, path)
+    filepath = os.path.join(current_dir, path)
 
-    return file_path
+    return filepath

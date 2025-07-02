@@ -38,7 +38,7 @@ def get_tank_mesh(resolution, N_in, N_out):
 
 def getdata_from_experiment(exp_case):
     mat = scipy.io.loadmat(
-        get_file_path(f"eit_data/data_mat_files/datamat_{exp_case}.mat")
+        _get_filepath(f"eit_data/data_mat_files/datamat_{exp_case}.mat")
     )
     Uel = mat.get("Uel").T
     CP = mat.get("CurrentPattern").T
@@ -177,10 +177,10 @@ def estimate_cond(U0, I_all, elec_mesh, z, *, is_finn_tank=True):
     return cond, z
 
 
-def get_file_path(path):
+def _get_filepath(path):
     # Get the directory where this function is defined
     current_dir = os.path.dirname(os.path.abspath(__file__))
     # Construct the path to a file relative to this directory
-    file_path = os.path.join(current_dir, path)
+    filepath = os.path.join(current_dir, path)
 
-    return file_path
+    return filepath

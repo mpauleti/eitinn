@@ -12,7 +12,6 @@ def main() -> None:
     os.makedirs("logs", exist_ok=True)
     os.makedirs("electrodes-mesh", exist_ok=True)
     os.makedirs("reconstructions", exist_ok=True)
-    os.makedirs("reconstructions/iterations", exist_ok=True)
     os.makedirs("residuals", exist_ok=True)
 
     # Mesh Parameters
@@ -27,10 +26,15 @@ def main() -> None:
 
     ## Plotting mesh
     fplot.plot_electrodes_mesh(
-        elec_mesh, save=True, filename="electrodes-mesh/electrodes_mesh.pdf"
+        elec_mesh,
+        save=True,
+        filename="electrodes-mesh/electrodes_mesh.pdf",
     )
-    fplot.plot_electrodes_mesh_with_tank(
-        elec_mesh, save=True, filename="electrodes-mesh/electrodes_mesh_tank.pdf"
+    fplot.plot_electrodes_mesh(
+        elec_mesh,
+        with_tank=True,
+        save=True,
+        filename="electrodes-mesh/electrodes_mesh_tank.pdf",
     )
 
     #### Defining impedances, experiments and currents
@@ -44,6 +48,10 @@ def main() -> None:
 
     exp_cases = ["2_3", "4_1", "4_4"]
     methods = ["Lp|p=2", "TV1|p=2", "TV1|p=1.1"]
+
+    plot_iterations = False
+    if plot_iterations:
+        os.makedirs("reconstructions/iterations", exist_ok=True)
 
     start_all = perf_counter()
     for exp_case in exp_cases:
@@ -91,56 +99,61 @@ def main() -> None:
             residual_list.append(ip.res_list)
 
             # Plot iteration history
-            fplot.plot_reconstructions(
-                ip.gamma_all,
-                elec_mesh,
-                exp_case,
-                save=True,
-                filename=f"reconstructions/iterations/recs_{exp_case}_{inner_method}_{space_name}_all.pdf",
-                cmap="turbo",
-                mesh_display="nil",
-                colorbar_display="aio",
-                inctitle="Iteration",
-                incstart=0,
-            )
+            if plot_iterations:
+                titles = [f"Iteration {i}" for i in range(len(ip.gamma_all))]
 
-            fplot.plot_reconstructions(
-                ip.gamma_all,
-                elec_mesh,
-                exp_case,
-                save=True,
-                filename=f"reconstructions/iterations/recs_{exp_case}_{inner_method}_{space_name}_ind.pdf",
-                cmap="turbo",
-                mesh_display="nil",
-                colorbar_display="individual",
-                inctitle="Iteration",
-                incstart=0,
-            )
+                fplot.plot_reconstructions(
+                    ip.gamma_all,
+                    elec_mesh,
+                    titles=titles,
+                    mesh_display="nil",
+                    colorbar_display="all",
+                    cmap="turbo",
+                    with_phantom=True,
+                    exp_case=exp_case,
+                    save=True,
+                    filename=f"reconstructions/iterations/recs_{exp_case}_{inner_method}_{space_name}_all.pdf",
+                )
+
+                fplot.plot_reconstructions(
+                    ip.gamma_all,
+                    elec_mesh,
+                    titles=titles,
+                    mesh_display="nil",
+                    colorbar_display="ind",
+                    cmap="turbo",
+                    with_phantom=True,
+                    exp_case=exp_case,
+                    save=True,
+                    filename=f"reconstructions/iterations/recs_{exp_case}_{inner_method}_{space_name}_ind.pdf",
+                )
+
+        titles = [f"Method {i + 1}" for i in range(len(gamma_recs))]
 
         fplot.plot_reconstructions(
             gamma_recs,
             elec_mesh,
-            exp_case,
+            titles=titles,
+            mesh_display="nil",
+            colorbar_display="all",
+            cmap="turbo",
+            with_phantom=True,
+            exp_case=exp_case,
             save=True,
             filename=f"reconstructions/recs_{exp_case}_all.pdf",
-            cmap="turbo",
-            mesh_display="nil",
-            colorbar_display="aio",
-            inctitle="Method",
-            incstart=1,
         )
 
         fplot.plot_reconstructions(
             gamma_recs,
             elec_mesh,
-            exp_case,
+            titles=titles,
+            mesh_display="nil",
+            colorbar_display="ind",
+            cmap="turbo",
+            with_phantom=True,
+            exp_case=exp_case,
             save=True,
             filename=f"reconstructions/recs_{exp_case}_ind.pdf",
-            cmap="turbo",
-            mesh_display="nil",
-            colorbar_display="individual",
-            inctitle="Method",
-            incstart=1,
         )
 
         fplot.plot_residuals(
@@ -194,7 +207,7 @@ def logger(filename="log.txt", *, mode="w"):
             original_stdout = sys.stdout  # Save the original stdout
             tee = Tee(filename, mode=mode)
 
-            sys.stdout = tee  # Redirect stdout to our Tee class
+            sys.stdout = tee  # Redirect stdout
             try:
                 start = perf_counter()
                 result = func(*args, **kwargs)
