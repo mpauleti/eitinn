@@ -100,7 +100,8 @@ def main() -> None:
 
             # Plot iteration history
             if plot_iterations:
-                titles = [f"Iteration {i}" for i in range(len(ip.gamma_all))]
+                titles = ["Inclusions", "Initial Guess"]
+                titles += [f"Iteration {i}" for i in range(1, len(ip.gamma_all))]
 
                 fplot.plot_reconstructions(
                     ip.gamma_all,
@@ -128,7 +129,8 @@ def main() -> None:
                     filename=f"reconstructions/iterations/recs_{exp_case}_{inner_method}_{space_name}_ind.pdf",
                 )
 
-        titles = [f"Method {i + 1}" for i in range(len(gamma_recs))]
+        titles = ["Inclusions"]
+        titles += [f"Method {i + 1}" for i in range(len(gamma_recs))]
 
         fplot.plot_reconstructions(
             gamma_recs,

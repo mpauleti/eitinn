@@ -42,7 +42,8 @@ def plot_functions(
         titles = [titles]
 
     if titles is None:
-        titles = ["" for _ in range(NFUNC)]
+        NT = NFUNC + 1 if with_phantom else NFUNC
+        titles = ["" for _ in range(NT)]
 
     nr, nc = (1, NFUNC + 1) if with_phantom else (1, NFUNC)
     nr, nc = _adjust_dim((nr, nc), fig_max_cols)
@@ -62,7 +63,7 @@ def plot_functions(
         photo_name = _get_filepath(f"eit_data/target_photos/fantom_{exp_case}.jpg")
         img = mpimg.imread(photo_name)
         ax0.imshow(img)
-        ax0.set_title("Inclusions", fontsize=fontsize)
+        ax0.set_title(titles[0], fontsize=fontsize)
 
     if with_colorbar and colorbar_display == "all":
         clim_min = np.min([func.vector().get_local().min() for func in funcs])
@@ -97,7 +98,7 @@ def plot_functions(
                     p, fig, ax=axs, colorbar_fontsize=colorbar_fontsize, pad=0.01
                 )
 
-        axi.set_title(titles[i - istart], fontsize=fontsize)
+        axi.set_title(titles[i], fontsize=fontsize)
 
     if not with_axis:
         _disable_axis(axs)
