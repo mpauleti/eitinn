@@ -35,10 +35,16 @@ The book repository is available [here](https://github.com/HafemannE/FEIT_CBM34)
 If you use this program in your work, please cite:
 
 ```
-@article{pmr2023,
-  title  = {Inexact Newton regularizations with uniformly convex stability terms: a unified convergence analysis},
-  author = {Pauleti, Marco and Margotti, F{\'a}bio and Rieder, Andreas},
-  year   = {2023},
-  url    = {https://doi.org/10.5445/IR/1000157900}
+@article{pmr-imanum2026,
+  title        = {Inexact Newton regularizations with uniformly convex stability terms: a unified convergence analysis},
+  author       = {Pauleti, Marco and Margotti, F{\'a}bio and Rieder, Andreas},
+  year         = 2026,
+  month        = {05},
+  journal      = {IMA Journal of Numerical Analysis},
+  pages        = {drag026},
+  doi          = {10.1093/imanum/drag026},
+  issn         = {0272-4979},
+  url          = {https://doi.org/10.1093/imanum/drag026},
+  eprint       = {https://academic.oup.com/imajna/advance-article-pdf/doi/10.1093/imanum/drag026/68438276/drag026.pdf},
 }
 ```

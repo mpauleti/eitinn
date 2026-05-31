@@ -10,3 +10,20 @@ __pycache__/
 /electrodes-mesh/
 /reconstructions/
 /residuals/
+
+# Tool configurations and caches
+.ruff_cache/
+ruff.toml
+.ruff.toml
+pyproject.toml
+pyrefly.toml
+.mypy_cache/
+.pytest_cache/
+tox.ini
+setup.cfg
+.flake8
+.pylintrc
+
+# Makefiles
+Makefile
+*.mk

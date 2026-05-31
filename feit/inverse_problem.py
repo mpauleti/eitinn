@@ -3,16 +3,27 @@ from .forward_problem import ForwardProblem
 import numpy as np
 from scipy.sparse import csr_matrix
 
-from fenics import *
+from fenics import (
+    FiniteElement,
+    Function,
+    FunctionSpace,
+    VectorFunctionSpace,
+    cells,
+    edges,
+    grad,
+    project,
+)
 
 
 class InverseProblem(ForwardProblem):
     """
     InverseProblem Object for EIT 2D.
 
-    Class for solving the inverse problem of the Electrical Impedance Tomography (EIT) in 2D.
-    The inverse problem aims to reconstruct the electrical conductivity distribution within a
-    domain based on measured electrical potentials at the boundary (electrodes).
+    Class for solving the inverse problem of Electrical Impedance
+    Tomography (EIT) in 2D.
+    The inverse problem aims to reconstruct the electrical conductivity
+    distribution within a domain based on measured electrical potentials
+    at the boundary (electrodes).
     """
 
     def __init__(self, elec_mesh, data, I_all, z):
@@ -22,7 +33,7 @@ class InverseProblem(ForwardProblem):
         self.V = FiniteElement("CG", elec_mesh.ufl_cell(), 1)
         self.Q_DG = FunctionSpace(self.mesh, "DG", 0)
         self.I_all = I_all  # Current pattern used in data
-        self.U_delta = np.array(data)  # Electrodes potencial in array
+        self.U_delta = np.array(data)  # Electrodes potential in array
         # Verify if it is a matrix or a vector
         self.I_all = np.array(self.I_all)
         self.l = len(self.I_all) if self.I_all.ndim == 2 else 1
@@ -56,7 +67,8 @@ class InverseProblem(ForwardProblem):
         self.Lp_space = 2  # Input space X = Lp
         self.Lr_space = 2  # Data space Y = Lr
 
-        ### Creating a vector with all cell volumes. It's usefull for integrals in Lp(Omega).
+        ### Creating a vector with all cell volumes.
+        ### It's useful for integrals in Lp(Omega).
         cell_list = [cell.volume() for cell in cells(elec_mesh)]
         self.cell_arr = np.array(cell_list)
 
@@ -85,25 +97,24 @@ class InverseProblem(ForwardProblem):
         Fx_n = self.eval_forward_op(self.V, self.I_all, self.gamma_n)
 
         b_n = y_delta - Fx_n
-        misfit_n = self.norm_funcLp(b_n, "dOmega", ord=r)
+        misfit_n = self.norm_funcLp(b_n, "dOmega", ord_=r)
 
         # Save status
         # Residual list
-        res_list.append(misfit_n / self.norm_funcLp(y_delta, "dOmega", ord=r) * 100)
+        res_list.append(misfit_n / self.norm_funcLp(y_delta, "dOmega", ord_=r) * 100)
 
         # Print information
         if self.verbose:
-            print(
-                f"Stop when reaching {self.tau*self.noise_level*100:.4f}% of the residual."
-            )
+            taudelta = self.tau * self.noise_level * 100
+            print(f"Stop when reaching {taudelta:.4f}% of the residual.")
             print(f"Initial residual (%): {res_list[0]:.6f}")
 
         #### Solver
         # n = 0 (self.step)
-        x_n = np.copy(self.initial_guess_primal)
-        xi_n = np.copy(self.initial_guess_dual)
+        x_n = self.initial_guess_primal
+        xi_n = self.initial_guess_dual
 
-        # While discrepancy principle or limit of steps.
+        # Loop until discrepancy principle is met or the step limit is reached.
         th = self.tau * self.noise_level  # threshold
         while res_list[self.step] / 100 > th and self.step < self.step_limit:
             mu_n = self.calc_tolerance(
@@ -120,21 +131,26 @@ class InverseProblem(ForwardProblem):
             Fx_n = self.eval_forward_op(self.V, self.I_all, self.gamma_n)
 
             b_n = y_delta - Fx_n
-            misfit_n = self.norm_funcLp(b_n, "dOmega", ord=r)
+            misfit_n = self.norm_funcLp(b_n, "dOmega", ord_=r)
 
             ## Saving progress
             gamma_all.append(self.Cellsgamma_n)
-            res_list.append(misfit_n / self.norm_funcLp(y_delta, "dOmega", ord=r) * 100)
+            res_list.append(
+                misfit_n / self.norm_funcLp(y_delta, "dOmega", ord_=r) * 100
+            )
             self.inner_step_list.append(inner_step)
             mu_list.append(mu_n)
 
             # Print information
             if self.verbose:
                 print(
-                    f"Residual (%): {res_list[self.step]:.6f}    Step: {self.step:<4}  Inner step (prev): {inner_step:<4}  mu (prev): {self.mu:.6f}"
+                    f"Step: {self.step:>2d} | "
+                    f"Residual (%): {res_list[self.step]:>8.5f} | "
+                    f"Inner steps (prev): {inner_step:>3d} | "
+                    f"mu (prev): {self.mu:.6f}"
                 )
 
-        # Vectors to memory object
+        # Store vectors in the memory object
         self.gamma_all = np.array(gamma_all)
         self.res_list = res_list
         self.mu_list = mu_list
@@ -146,14 +162,15 @@ class InverseProblem(ForwardProblem):
         Solve the linearized problem (inner step).
 
         This method is used to solve the inner step of the Newton method.
-        It iteratively updates the solution `gamma_n` using different regularization methods.
+        It iteratively updates the solution `gamma_n` using
+        different regularization methods.
         """
         p = self.Lp_space
         r = self.Lr_space
         pstar = p / (p - 1)
         # rstar = r / (r - 1)
         kappa = np.maximum(p, 2)
-        norm_b_n = self.norm_funcLp(b_n, "dOmega", ord=r)
+        norm_b_n = self.norm_funcLp(b_n, "dOmega", ord_=r)
 
         # If we are using weights, compute and store them.
         if self.use_weight and self.step == 0:
@@ -167,9 +184,8 @@ class InverseProblem(ForwardProblem):
             A_nstar = A_n.T
 
         k = 0
-
-        x_nk = np.copy(x_n)
-        xi_nk = np.copy(xi_n)
+        x_nk = x_n
+        xi_nk = xi_n
 
         # linear_diff = A_n(x_nk - x_n) - b_n
         #             = A_n(s_nk) - b_n
@@ -193,7 +209,7 @@ class InverseProblem(ForwardProblem):
                     linear_res**2 / self.norm_funcLp(w_nk, "Omega") ** 2
                 )
             else:
-                d = self.norm_funcLp(w_nk, "Omega", ord=pstar)  # denominator
+                d = self.norm_funcLp(w_nk, "Omega", ord_=pstar)  # denominator
 
                 lamb1 = linear_res ** (r * (kappa - 1)) / d**kappa
                 lamb2 = linear_res ** (r * (p - 1)) / d**p
@@ -207,7 +223,7 @@ class InverseProblem(ForwardProblem):
             x_nk, xi_nk = self.filter_low_values(x_nk, xi_nk)
 
             linear_diff = A_n @ (x_nk - x_n) - b_n
-            linear_res = self.norm_funcLp(linear_diff, "dOmega", ord=r)
+            linear_res = self.norm_funcLp(linear_diff, "dOmega", ord_=r)
 
             k += 1
 
@@ -228,9 +244,9 @@ class InverseProblem(ForwardProblem):
         return kmax
 
     def filter_low_values(self, x, xi):
-        # Do not have values too close to zero
+        # Ensure values are not too close to zero
         mask = x < self.min_v
-        if any(mask):
+        if np.any(mask):
             x[mask] = self.min_v
             xi = self.__primal_to_dual(x)
 
@@ -281,47 +297,52 @@ class InverseProblem(ForwardProblem):
             return sgn * s
 
         elif self.inner_method in ["TV1", "TV2"]:
-            L = self.TV_L
-            # objfunc = lambda x: self.__objfunc(x, xi, L)
-            objgrad = lambda x: self.__objgrad(x, xi, L)
 
-            return _minacc(objgrad, x0, ord=self.Lp_space)[0]
+            def objgrad(x, xi=xi):
+                return self.__objgrad(x, xi)
 
-    # def __eval_TV(self, x, L):
-    #     EPS = self.TV_EPS
+            return _minacc(objgrad, x0, ord_=self.Lp_space)[0]
 
-    #     Lx = L @ x
-    #     TV_smooth = np.sqrt(Lx**2 + EPS)
+    # def __eval_TV(self, x):
+    # L = self.TV_L
 
-    #     return np.sum(TV_smooth)
+    # EPS = self.TV_EPS
 
-    def __grad_TV(self, x, L):
+    # Lx = L @ x
+    # TV_smooth = np.sqrt(Lx**2 + EPS)
+
+    # return np.sum(TV_smooth)
+
+    def __grad_TV(self, x):
+        L = self.TV_L
+        LT = self.TV_LT
+
         EPS = self.TV_EPS
 
         Lx = L @ x
         q = Lx / np.sqrt(Lx**2 + EPS)
 
-        return L.T @ q
+        return LT @ q
 
-    # def __objfunc(self, x, xi, L):
-    #     p = self.Lp_space
-    #     beta = self.penalty_beta
+    # def __objfunc(self, x, xi):
+    # p = self.Lp_space
+    # beta = self.penalty_beta
 
-    #     TV_x = self.__eval_TV(x, L)
+    # TV_x = self.__eval_TV(x)
 
-    #     Lp = (1 / p) * np.sum(np.abs(x) ** p)
+    # Lp = (1 / p) * np.sum(np.abs(x) ** p)
 
-    #     affine_x = np.inner(xi, x)
+    # affine_x = np.inner(xi, x)
 
-    #     if self.inner_method == "TV2":
-    #         return TV_x + (1 / beta) * Lp - affine_x
-    #     return beta * TV_x + Lp - affine_x
+    # if self.inner_method == "TV2":
+    # return TV_x + (1 / beta) * Lp - affine_x
+    # return beta * TV_x + Lp - affine_x
 
-    def __objgrad(self, x, xi, L):
+    def __objgrad(self, x, xi):
         p = self.Lp_space
         beta = self.penalty_beta
 
-        grad_TV_x = self.__grad_TV(x, L)
+        grad_TV_x = self.__grad_TV(x)
 
         if self.inner_method == "TV2":
             return grad_TV_x + (1 / beta) * _dm(x, p) - xi
@@ -383,7 +404,8 @@ class InverseProblem(ForwardProblem):
         """
         Determine the weights for the Jacobian matrix and apply them.
 
-        The weights are used to (possibly) improve the convergence of the Newton-like method.
+        The weights are used to (possibly) improve the
+        convergence of the Newton-like method.
         """
         # norm(jac_cols) * 1 / vol_cell_n * 1 / gamma_cell_n
         w = np.linalg.norm(jac, axis=0) * (1 / self.cell_arr) * (1 / self.Cellsgamma_n)
@@ -394,7 +416,8 @@ class InverseProblem(ForwardProblem):
         Determine the tolerance parameter mu for the Newton inner step.
 
         Reference: Section 6
-        On the regularization of nonlinear ill-posed problems via inexact Newton iterations, 1999.
+        On the regularization of nonlinear ill-posed problems
+        via inexact Newton iterations, 1999.
         Andreas Rieder
         http://dx.doi.org/10.1088/0266-5611/15/1/028
         """
@@ -418,22 +441,28 @@ class InverseProblem(ForwardProblem):
         self.mu = mu
         return mu
 
-    def norm_funcLp(self, func_arr, domain, *, ord=2):
+    def norm_funcLp(self, func_arr, domain, *, ord_=2):
         """
         Computes the Lp norm of a function for the given domain ("Omega" or "dOmega").
         """
-        p = ord
+        p = ord_
         w = self.weight
 
+        norm = 0
         if domain == "Omega":
             dx = self.cell_arr
+            if p == 2:
+                norm = np.sum((func_arr**2) * w * dx)
+                return np.sqrt(norm)
             norm = np.sum(np.abs(func_arr) ** p * w * dx)
         elif domain == "dOmega":
             ds = self.size_elec_vec
+            if p == 2:
+                norm = np.sum((func_arr**2) * ds)
+                return np.sqrt(norm)
             norm = np.sum(np.abs(func_arr) ** p * ds)
 
-        norm **= 1 / p
-        return norm
+        return norm ** (1 / p)
 
     def set_initial_guess(self, x0):
         self.initial_guess_primal = x0
@@ -444,6 +473,7 @@ class InverseProblem(ForwardProblem):
         if self.inner_method in ["TV1", "TV2"]:
             L = self.__assemble_L()
             self.TV_L = L
+            self.TV_LT = L.T
 
         self.initial_guess_dual = self.__primal_to_dual(x0)
 
@@ -492,8 +522,7 @@ class InverseProblem(ForwardProblem):
         elif self.inner_method == "TV1":
             beta = self.penalty_beta
 
-            L = self.TV_L
-            grad_TV_x = self.__grad_TV(x, L)
+            grad_TV_x = self.__grad_TV(x)
 
             if p == 2:
                 return beta * grad_TV_x + x
@@ -502,8 +531,7 @@ class InverseProblem(ForwardProblem):
         elif self.inner_method == "TV2":
             beta = self.penalty_beta
 
-            L = self.TV_L
-            grad_TV_x = self.__grad_TV(x, L)
+            grad_TV_x = self.__grad_TV(x)
 
             if p == 2:
                 return grad_TV_x + (1 / beta) * x
@@ -518,7 +546,8 @@ class InverseProblem(ForwardProblem):
 
     def set_Newton_parameters(self, **kwargs):
         """
-        Set parameters to determine the tolerance parameter mu for the Newton inner step.
+        Set parameters to determine the tolerance parameter mu
+        for the Newton inner step.
 
         Parameters
         ----------
@@ -592,10 +621,12 @@ class InverseProblem(ForwardProblem):
         inner_method : string, optional
             Set which method to use for solving the linearized problem.
             Valid options are ["Lp", "Sparse1", "Sparse2", "TV1", "TV2"].
-            Currently, all options implement a gradient method, but with different penalty terms.
+            Currently, all options implement a gradient method,
+            but with different penalty terms.
             Default is "Lp".
         ME_reg : float, optional
-            Small constant value used to compute the Minimal Error step for gradient method.
+            Small constant value used to compute the Minimal Error step
+            for gradient method.
             Default is 15e-4.
         inner_step_limit : int, optional
             Maximum number of steps (inner iteration).
@@ -621,7 +652,9 @@ class InverseProblem(ForwardProblem):
             setattr(self, key, value)
 
 
-def _dm(x, p):  # duallity mapping
+def _dm(x, p):  # duality mapping
+    if p == 2:
+        return x
     return np.sign(x) * np.abs(x) ** (p - 1)
 
 
@@ -639,7 +672,7 @@ def _minacc(
     s=1e-4,
     tol=1e-6,
     max_iter=100,
-    ord=2,
+    ord_=2,
 ):
     """
     Implement Nesterov's Accelerated Gradient method.
@@ -659,7 +692,7 @@ def _minacc(
 
         # Convergence check
         xdiff = xnew - xt
-        if np.linalg.norm(xdiff, ord=ord) <= tol * np.linalg.norm(xt, ord=ord):
+        if np.linalg.norm(xdiff, ord=ord_) <= tol * np.linalg.norm(xt, ord=ord_):
             xt = xnew  # Update before exiting
             t += 1
             break

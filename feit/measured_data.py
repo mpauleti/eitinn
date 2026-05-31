@@ -3,7 +3,8 @@ from .forward_problem import ForwardProblem
 
 import os
 import numpy as np
-import scipy
+import scipy.io as spio
+import scipy.optimize
 
 from fenics import Function, FunctionSpace, FiniteElement
 
@@ -37,14 +38,12 @@ def get_tank_mesh(resolution, N_in, N_out):
 
 
 def getdata_from_experiment(exp_case):
-    mat = scipy.io.loadmat(
-        _get_filepath(f"eit_data/data_mat_files/datamat_{exp_case}.mat")
-    )
+    mat = spio.loadmat(_get_filepath(f"eit_data/data_mat_files/datamat_{exp_case}.mat"))
     Uel = mat.get("Uel").T
     CP = mat.get("CurrentPattern").T
 
     # Selecting Potentials
-    Uel_f = Uel[-15:]  # Matrix of measuarements
+    Uel_f = Uel[-15:]  # Matrix of measurements
 
     # Current
     I_all = CP[-15:] / np.sqrt(2)
@@ -73,12 +72,14 @@ def convert_data(U):
     return c / L - U_til
 
 
-def calc_noise_level(U_noised: np.ndarray, I: np.ndarray, *, ord="fro") -> float:
+def calc_noise_level(U_noised: np.ndarray, I: np.ndarray, *, ord_="fro") -> float:
     """
-    Estimate the noise level in potential measurements obtained from a grounded electrode system.
+    Estimate the noise level in potential measurements obtained
+    from a grounded electrode system.
 
     Reference:
-    A model-aware inexact Newton scheme for electrical impedance tomography, 2016.
+    A model-aware inexact Newton scheme for electrical impedance
+    tomography, 2016.
     Robert Winkler
     https://publikationen.bibliothek.kit.edu/1000054135
     """
@@ -89,20 +90,20 @@ def calc_noise_level(U_noised: np.ndarray, I: np.ndarray, *, ord="fro") -> float
 
     Ev = (Iplus @ U_noised) - (Iplus @ U_noised).T
 
-    norm_Ev = np.linalg.norm(Ev, ord=ord)
-    norm_Iplus = np.linalg.norm(Iplus, ord=ord)
+    norm_Ev = np.linalg.norm(Ev, ord=ord_)
+    norm_Iplus = np.linalg.norm(Iplus, ord=ord_)
 
     vCEM = norm_Ev**2 / (2 * (L - 1)) * norm_Iplus ** (-2)
 
     delta = np.sqrt(l * L * vCEM)
 
-    noise_level = delta / np.linalg.norm(U_noised, ord=ord)
+    noise_level = delta / np.linalg.norm(U_noised, ord=ord_)
     return noise_level
 
 
-def estimate_cond_iter(U0, I_all, elec_mesh, z=None, *, zmin=1e-4, ord=2):
+def estimate_cond_iter(U0, I_all, elec_mesh, z=None, *, zmin=1e-4, ord_=2):
     Q_DG = FunctionSpace(elec_mesh, "DG", 0)
-    # Solution Space Continous Galerkin
+    # Solution Space Continuous Galerkin
     VD = FiniteElement("CG", elec_mesh.ufl_cell(), 1)
 
     if z is None:
@@ -110,7 +111,7 @@ def estimate_cond_iter(U0, I_all, elec_mesh, z=None, *, zmin=1e-4, ord=2):
         z = np.full(L, zmin)
 
     # Define the functional
-    def func(zi, U0, I_all, elec_mesh, z, ord):
+    def func(zi, U0, I_all, elec_mesh, z, ord_):
         cond, z = estimate_cond(U0, I_all, elec_mesh, zi)
         z = np.maximum(zmin, z)
 
@@ -123,12 +124,12 @@ def estimate_cond_iter(U0, I_all, elec_mesh, z=None, *, zmin=1e-4, ord=2):
         U_arr = U_arr.flatten()
 
         residual = (
-            np.linalg.norm(U_arr - U0, ord=ord) / np.linalg.norm(U0, ord=ord) * 100
+            np.linalg.norm(U_arr - U0, ord=ord_) / np.linalg.norm(U0, ord=ord_) * 100
         )
         return residual
 
     result = scipy.optimize.minimize(
-        func, zmin, method="BFGS", args=(U0, I_all, elec_mesh, z, ord)
+        func, zmin, method="BFGS", args=(U0, I_all, elec_mesh, z, ord_)
     )
     z = result["x"]
 
@@ -142,7 +143,7 @@ def estimate_cond(U0, I_all, elec_mesh, z, *, is_finn_tank=True):
     Returns a tuple with conductivity and potential estimates.
     """
     Q_DG = FunctionSpace(elec_mesh, "DG", 0)
-    # Solution Space Continous Galerkin
+    # Solution Space Continuous Galerkin
     VD = FiniteElement("CG", elec_mesh.ufl_cell(), 1)
 
     l, L = np.shape(I_all)
@@ -157,16 +158,16 @@ def estimate_cond(U0, I_all, elec_mesh, z, *, is_finn_tank=True):
     z0 = np.max(z)
 
     if is_finn_tank:
-        elec_lenght = 2.5
+        elec_length = 2.5
     else:
-        elec_lenght = elec_mesh.radius * (
+        elec_length = elec_mesh.radius * (
             elec_mesh.electrodes.position[0][1] - elec_mesh.electrodes.position[0][0]
         )
 
     a_vec = np.array(
-        [np.dot(U[i] - I_all[i] * z0 / elec_lenght, I_all[i]) for i in np.arange(l)]
+        [np.dot(U[i] - I_all[i] * z0 / elec_length, I_all[i]) for i in np.arange(l)]
     )
-    b_vec = np.array([np.dot(I_all[i], I_all[i] / elec_lenght) for i in np.arange(l)])
+    b_vec = np.array([np.dot(I_all[i], I_all[i] / elec_length) for i in np.arange(l)])
     c_vec = np.array([np.dot(U0[i], I_all[i]) for i in np.arange(l)])
 
     A = np.array([a_vec, b_vec]).T

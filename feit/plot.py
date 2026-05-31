@@ -34,7 +34,7 @@ def plot_functions(
 ):
     try:
         NFUNC = len(funcs)
-    except:
+    except TypeError:
         NFUNC = 1
         funcs = [funcs]
 
@@ -287,7 +287,7 @@ def plot_electrodes_mesh(
     if with_tank:
         ax0 = axs[0]  ## Tank first
 
-        photo_name = _get_filepath(f"eit_data/target_photos/fantom_1_0.jpg")
+        photo_name = _get_filepath("eit_data/target_photos/fantom_1_0.jpg")
         img = mpimg.imread(photo_name)
         ax0.imshow(img)
 
@@ -351,6 +351,9 @@ def plot_electrodes_mesh(
 
 
 def _plot_mesh_handler(func, elec_mesh, mesh_display, linewidth_mesh):
+    if mesh_display not in ["nil", "thin", "thick"]:
+        mesh_display = "nil"  # Default case
+
     if mesh_display == "nil":
         p = fxplot(func)
         p.set_rasterized(True)

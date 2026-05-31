@@ -4,8 +4,8 @@ import feit
 def main() -> None:
     ## Mesh Parameters
     resolution = 26  # Mesh resolution
-    N_in = 20  # Number of vertex on electrodes
-    N_out = 8  # Number of vertex on gaps
+    N_in = 20  # Number of vertices on electrodes
+    N_out = 8  # Number of vertices on gaps
 
     ## Defining mesh
     elec_mesh = feit.msd.get_tank_mesh(resolution, N_in, N_out)

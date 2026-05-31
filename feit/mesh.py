@@ -1,6 +1,6 @@
 import numpy as np
 
-from fenics import *
+from fenics import BoundaryMesh, Point
 from mshr import Polygon, generate_mesh
 
 
@@ -13,13 +13,16 @@ class Electrodes:
     L : int
         Number of electrodes.
     per_cober : float
-        Percentage of the boundary length covered by electrodes, between 0 and 1.
+        Percentage of the boundary length covered by electrodes,
+        between 0 and 1.
     rotation_angle : float, optional
-        Rotation angle for the initial position of the electrodes (default is 0).
+        Rotation angle for the initial position of
+        the electrodes (default is 0).
     anticlockwise : bool, optional
         Direction of rotation for electrode placement (default is True).
     position : list
-        List of tuples representing the initial and final positions (in angles) of each electrode.
+        List of tuples representing the initial and final
+        positions (in angles) of each electrode.
     """
 
     def __init__(self, L, per_cober, rotation_angle=0, *, anticlockwise=True):
@@ -117,21 +120,21 @@ def generate_electrodes_mesh(radius, resolution, N_in, N_out, electrodes):
     points = []
     vertices_elec = []
     if not anticlockwise:
-        elec_pos[1:] = elec_pos[1:][::-1]  # Fenics only accepts anticlockwise
+        elec_pos[1:] = elec_pos[1:][::-1]  # FEniCS only accepts anticlockwise
     for i in range(L):
         vertices = []
-        # Creating vertex on the electrodes.
+        # Creating vertices on the electrodes.
         theta0, thetai = elec_pos[i][0], elec_pos[i][1]
         for theta in np.linspace(theta0, thetai, N_in):
             pt = [
                 Point((np.cos(theta) * radius, np.sin(theta) * radius))
-            ]  # Defining Point object from Fenics.
+            ]  # Defining a Point object from FEniCS.
             points.append(pt)  # Grouping points.
 
             vertex_coord = [
                 np.cos(theta) * radius,
                 np.sin(theta) * radius,
-            ]  # Creating elec vertex on the boundary (anticlockwise)
+            ]  # Creating an electrode vertex on the boundary (anticlockwise)
             vertices.append(vertex_coord)  # Grouping vertices positions in R2
 
         # Selecting the last gap with the first electrode.
@@ -140,7 +143,7 @@ def generate_electrodes_mesh(radius, resolution, N_in, N_out, electrodes):
         else:
             theta0, thetai = elec_pos[i][1], 2 * np.pi + rotation_angle
 
-        # Creating vertex on the gaps.
+        # Creating vertices on the gaps.
         for theta in np.linspace(theta0, thetai, N_out + 2):
             if theta != theta0 and theta != thetai:
                 pt = [
