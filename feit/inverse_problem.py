@@ -111,8 +111,8 @@ class InverseProblem(ForwardProblem):
 
         #### Solver
         # n = 0 (self.step)
-        x_n = self.initial_guess_primal
-        xi_n = self.initial_guess_dual
+        x_n = np.copy(self.initial_guess_primal)
+        xi_n = np.copy(self.initial_guess_dual)
 
         # Loop until discrepancy principle is met or the step limit is reached.
         th = self.tau * self.noise_level  # threshold
@@ -184,8 +184,8 @@ class InverseProblem(ForwardProblem):
             A_nstar = A_n.T
 
         k = 0
-        x_nk = x_n
-        xi_nk = xi_n
+        x_nk = np.copy(x_n)
+        xi_nk = np.copy(xi_n)
 
         # linear_diff = A_n(x_nk - x_n) - b_n
         #             = A_n(s_nk) - b_n
