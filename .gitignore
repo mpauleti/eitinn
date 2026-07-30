@@ -14,9 +14,8 @@ __pycache__/
 # Tool configurations and caches
 .ruff_cache/
 ruff.toml
-.ruff.toml
+ty.toml
 pyproject.toml
-pyrefly.toml
 .mypy_cache/
 .pytest_cache/
 tox.ini
