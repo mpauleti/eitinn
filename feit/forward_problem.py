@@ -1,7 +1,6 @@
 import numpy as np
 import scipy.sparse
 import scipy.sparse.linalg
-
 from fenics import (
     Constant,
     FiniteElement,
@@ -95,8 +94,6 @@ class ForwardProblem:
 
         # Save in memory, set new attribute.
         self.list_e = list_e
-
-        return
 
     def solve_forward(self, V, I_all, gamma):
         """
@@ -197,7 +194,7 @@ class ElectrodeDomain(SubDomain):
     def __init__(
         self, mesh_vertex, L
     ):  # Observe that mesh_vertex corresponds to electrode i.
-        super(ElectrodeDomain, self).__init__()
+        super().__init__()
         self.mesh_vertex = np.array(
             mesh_vertex
         ).T  # Getting electrode vertices from the mesh
@@ -221,20 +218,13 @@ class ElectrodeDomain(SubDomain):
         # After that we verify if the vertex is inside
         # a "box" at (X1,X) x (Y1,Y).
 
-        # If element is on boundary...
-        condition_1 = on_boundary
+        if not on_boundary:
+            return False
 
-        # If vertex coordinate x is between...
-        condition_2 = between(x[0], ((self.X), (self.X1))) or between(
-            x[0], ((self.X1, (self.X)))
+        in_x_bounds = between(x[0], ((self.X), (self.X1))) or between(
+            x[0], ((self.X1), (self.X))
         )
-
-        # If vertex coordinate y is between...
-        condition_3 = between(x[1], ((self.Y), (self.Y1))) or between(
-            x[1], ((self.Y1, (self.Y)))
+        in_y_bounds = between(x[1], ((self.Y), (self.Y1))) or between(
+            x[1], ((self.Y1), (self.Y))
         )
-
-        # If all conditions are satisfied,
-        # then this vertex is part of the electrode.
-        # Otherwise, no.
-        return condition_1 and condition_2 and condition_3
+        return in_x_bounds and in_y_bounds

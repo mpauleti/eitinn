@@ -1,7 +1,9 @@
-from . import mesh
-from . import measured_data as msd
-from . import plot
-from . import forward_problem as fp
-from . import inverse_problem as ip
+from . import (
+    forward_problem as fp,
+    inverse_problem as ip,
+    measured_data as msd,
+    mesh,
+    plot,
+)
 
-__all__ = ["mesh", "msd", "plot", "fp", "ip"]
+__all__ = ["fp", "ip", "mesh", "msd", "plot"]

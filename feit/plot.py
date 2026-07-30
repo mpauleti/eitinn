@@ -1,14 +1,12 @@
 import os
-import numpy as np
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
-from matplotlib.patches import Arc
-from matplotlib.ticker import MultipleLocator
-
 from typing import Literal
 
-from fenics import FunctionSpace, Function
-from fenics import plot as fxplot
+import matplotlib.image as mpimg
+import matplotlib.pyplot as plt
+import numpy as np
+from fenics import Function, FunctionSpace, plot as fxplot
+from matplotlib.patches import Arc
+from matplotlib.ticker import MultipleLocator
 
 
 def plot_functions(
@@ -109,8 +107,6 @@ def plot_functions(
     if close_fig:
         plt.close(fig)
 
-    return
-
 
 def _adjust_dim(dim, max_cols):
     r, c = dim
@@ -172,7 +168,6 @@ def plot_reconstructions(
         filename=filename,
         close_fig=close_fig,
     )
-    return
 
 
 # Define possible markers, colors and linestyles
@@ -251,8 +246,6 @@ def plot_residuals(
 
     if close_fig:
         plt.close(fig)
-
-    return
 
 
 def plot_electrodes_mesh(
@@ -347,8 +340,6 @@ def plot_electrodes_mesh(
     if close_fig:
         plt.close(fig)
 
-    return
-
 
 def _plot_mesh_handler(func, elec_mesh, mesh_display, linewidth_mesh):
     if mesh_display not in ["nil", "thin", "thick"]:
@@ -386,7 +377,6 @@ def _create_colorbar(
     cbar.ax.yaxis.set_ticks_position("right")  # Set tick position
     cbar.ax.yaxis.set_visible(True)  # Ensure axis is visible
     cbar.ax.tick_params(labelsize=colorbar_fontsize)  # Adjust tick label size
-    return
 
 
 def _disable_axis(axs: tuple[plt.Axes, ...]):
@@ -394,12 +384,10 @@ def _disable_axis(axs: tuple[plt.Axes, ...]):
         ax.set_xticks([])  # Remove x ticks
         ax.set_yticks([])  # Remove y ticks
         ax.set_frame_on(False)  # Disable the frame
-    return
 
 
 def _save_fig(fig, filename, *, dpi=300):
     fig.savefig(filename, dpi=dpi, bbox_inches="tight")
-    return
 
 
 def _get_filepath(path):

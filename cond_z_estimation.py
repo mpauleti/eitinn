@@ -18,8 +18,6 @@ def main() -> None:
     print(f"cond estimation: {cond:.15f}")
     print(f"z estimation: {z:.15f}")
 
-    return
-
 
 if __name__ == "__main__":
     main()

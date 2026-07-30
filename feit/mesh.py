@@ -1,5 +1,4 @@
 import numpy as np
-
 from fenics import BoundaryMesh, Point
 from mshr import Polygon, generate_mesh
 
@@ -145,11 +144,12 @@ def generate_electrodes_mesh(radius, resolution, N_in, N_out, electrodes):
 
         # Creating vertices on the gaps.
         for theta in np.linspace(theta0, thetai, N_out + 2):
-            if theta != theta0 and theta != thetai:
-                pt = [
-                    Point((np.cos(theta) * radius, np.sin(theta) * radius))
-                ]  # Creating gap vertex on the boundary (anticlockwise)
-                points.append(pt)  # Grouping points.
+            if theta in (theta0, thetai):
+                continue
+            pt = [
+                Point((np.cos(theta) * radius, np.sin(theta) * radius))
+            ]  # Creating gap vertex on the boundary (anticlockwise)
+            points.append(pt)  # Grouping points.
 
         vertices_elec.append(vertices)  # Grouping list of vertices in the electrode i
 
@@ -181,8 +181,6 @@ def print_mesh_config(dmesh):
     print("N  := Number of cells (or elements) in the mesh.")
     print()
     print(
-        "V: {}, VB: {}, N: {}".format(
-            dmesh.num_vertices(), bmesh.num_vertices(), dmesh.num_cells()
-        )
+        f"V: {dmesh.num_vertices()}, VB: {bmesh.num_vertices()}, N: {dmesh.num_cells()}"
     )
     print("=" * 30)

@@ -1,8 +1,4 @@
-from .forward_problem import ForwardProblem
-
 import numpy as np
-from scipy.sparse import csr_matrix
-
 from fenics import (
     FiniteElement,
     Function,
@@ -13,6 +9,9 @@ from fenics import (
     grad,
     project,
 )
+from scipy.sparse import csr_matrix
+
+from .forward_problem import ForwardProblem
 
 
 class InverseProblem(ForwardProblem):
@@ -155,8 +154,6 @@ class InverseProblem(ForwardProblem):
         self.res_list = res_list
         self.mu_list = mu_list
 
-        return
-
     def solve_innerNewton(self, x_n, xi_n, b_n, mu_n, A_n):
         """
         Solve the linearized problem (inner step).
@@ -262,7 +259,7 @@ class InverseProblem(ForwardProblem):
             pstar = p / (p - 1)
             return _dm(xi, pstar)
 
-        elif self.inner_method == "Sparse1":
+        if self.inner_method == "Sparse1":
             p = self.Lp_space
             beta = self.penalty_beta
 
@@ -279,7 +276,7 @@ class InverseProblem(ForwardProblem):
             s **= pw
             return sgn * s
 
-        elif self.inner_method == "Sparse2":
+        if self.inner_method == "Sparse2":
             p = self.Lp_space
             beta = self.penalty_beta
 
@@ -296,22 +293,14 @@ class InverseProblem(ForwardProblem):
             s **= pw
             return sgn * s
 
-        elif self.inner_method in ["TV1", "TV2"]:
+        if self.inner_method in ["TV1", "TV2"]:
 
             def objgrad(x, xi=xi):
                 return self.__objgrad(x, xi)
 
             return _minacc(objgrad, x0, ord_=self.Lp_space)[0]
 
-    # def __eval_TV(self, x):
-    # L = self.TV_L
-
-    # EPS = self.TV_EPS
-
-    # Lx = L @ x
-    # TV_smooth = np.sqrt(Lx**2 + EPS)
-
-    # return np.sum(TV_smooth)
+        return None
 
     def __grad_TV(self, x):
         L = self.TV_L
@@ -323,20 +312,6 @@ class InverseProblem(ForwardProblem):
         q = Lx / np.sqrt(Lx**2 + EPS)
 
         return LT @ q
-
-    # def __objfunc(self, x, xi):
-    # p = self.Lp_space
-    # beta = self.penalty_beta
-
-    # TV_x = self.__eval_TV(x)
-
-    # Lp = (1 / p) * np.sum(np.abs(x) ** p)
-
-    # affine_x = np.inner(xi, x)
-
-    # if self.inner_method == "TV2":
-    # return TV_x + (1 / beta) * Lp - affine_x
-    # return beta * TV_x + Lp - affine_x
 
     def __objgrad(self, x, xi):
         p = self.Lp_space
@@ -394,10 +369,9 @@ class InverseProblem(ForwardProblem):
 
             jac = deriv * self.cell_arr  # Matrix * Volume_cell
 
-            for row in jac:
-                jac_all.append(row)
+            jac_all.append(jac)
 
-        jac_all = np.array(jac_all)
+        jac_all = np.vstack(jac_all)
         return jac_all
 
     def weight_func(self, jac):
@@ -448,20 +422,21 @@ class InverseProblem(ForwardProblem):
         p = ord_
         w = self.weight
 
-        norm = 0
         if domain == "Omega":
-            dx = self.cell_arr
-            if p == 2:
-                norm = np.sum((func_arr**2) * w * dx)
-                return np.sqrt(norm)
-            norm = np.sum(np.abs(func_arr) ** p * w * dx)
+            # dx = self.cell_arr
+            # measure = w * dx
+            measure = w * self.cell_arr
         elif domain == "dOmega":
-            ds = self.size_elec_vec
-            if p == 2:
-                norm = np.sum((func_arr**2) * ds)
-                return np.sqrt(norm)
-            norm = np.sum(np.abs(func_arr) ** p * ds)
+            # ds = self.size_elec_vec
+            # measure = ds
+            measure = self.size_elec_vec
+        else:
+            raise ValueError(f"Unknown domain: {domain}")
 
+        if p == 2:
+            return np.sqrt(np.sum((func_arr**2) * measure))
+
+        norm = np.sum(np.abs(func_arr) ** p * measure)
         return norm ** (1 / p)
 
     def set_initial_guess(self, x0):
@@ -505,21 +480,21 @@ class InverseProblem(ForwardProblem):
                 return np.copy(x)
             return _dm(x, p)
 
-        elif self.inner_method == "Sparse1":
+        if self.inner_method == "Sparse1":
             beta = self.penalty_beta
 
             if p == 2:
                 return beta * _subL1(x) + x
             return beta * _subL1(x) + _dm(x, p)
 
-        elif self.inner_method == "Sparse2":
+        if self.inner_method == "Sparse2":
             beta = self.penalty_beta
 
             if p == 2:
                 return _subL1(x) + (1 / beta) * x
             return _subL1(x) + (1 / beta) * _dm(x, p)
 
-        elif self.inner_method == "TV1":
+        if self.inner_method == "TV1":
             beta = self.penalty_beta
 
             grad_TV_x = self.__grad_TV(x)
@@ -528,7 +503,7 @@ class InverseProblem(ForwardProblem):
                 return beta * grad_TV_x + x
             return beta * grad_TV_x + _dm(x, p)
 
-        elif self.inner_method == "TV2":
+        if self.inner_method == "TV2":
             beta = self.penalty_beta
 
             grad_TV_x = self.__grad_TV(x)
@@ -536,6 +511,8 @@ class InverseProblem(ForwardProblem):
             if p == 2:
                 return grad_TV_x + (1 / beta) * x
             return grad_TV_x + (1 / beta) * _dm(x, p)
+
+        return None
 
     def set_Lebesgue(self, p, r):
         self.Lp_space = p

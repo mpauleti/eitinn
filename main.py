@@ -1,11 +1,12 @@
-import feit
-import feit.plot as fplot
-
+import functools
 import os
 import sys
-import functools
 from time import perf_counter
+
 import numpy as np
+
+import feit
+import feit.plot as fplot
 
 
 def main() -> None:
@@ -166,8 +167,6 @@ def main() -> None:
 
     end_all = perf_counter()
     print(f"Elapsed time (ALL): {end_all - start_all:.4f}")
-
-    return
 
 
 def solve_ip_with_log(ip, filename):

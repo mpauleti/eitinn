@@ -1,13 +1,12 @@
-from . import mesh as fmesh
-from .forward_problem import ForwardProblem
-
 import os
+
 import numpy as np
 import scipy.io as spio
 import scipy.optimize
+from fenics import FiniteElement, Function, FunctionSpace
 
-from fenics import Function, FunctionSpace, FiniteElement
-
+from . import mesh as fmesh
+from .forward_problem import ForwardProblem
 
 #### CONST
 ## Estimation results with (resolution, N_in, N_out) = (26, 20, 8).
