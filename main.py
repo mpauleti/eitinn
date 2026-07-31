@@ -9,13 +9,13 @@ import feit
 import feit.plot as fplot
 
 
-def main() -> None:
+def main(plot_iterations=False) -> None:
     Path("logs").mkdir(parents=True, exist_ok=True)
     Path("electrodes-mesh").mkdir(parents=True, exist_ok=True)
     Path("reconstructions").mkdir(parents=True, exist_ok=True)
     Path("residuals").mkdir(parents=True, exist_ok=True)
 
-    # Mesh Parameters
+    # Mesh parameters
     resolution = 26  # Mesh resolution
     N_in = 20  # Number of vertices on electrodes
     N_out = 8  # Number of vertices on gaps
@@ -25,7 +25,7 @@ def main() -> None:
 
     feit.mesh.print_mesh_config(elec_mesh)
 
-    ## Plotting mesh
+    # Plotting mesh
     fplot.plot_electrodes_mesh(
         elec_mesh,
         save=True,
@@ -38,25 +38,23 @@ def main() -> None:
         filename=Path("electrodes-mesh") / "electrodes_mesh_tank.pdf",
     )
 
-    #### Defining impedances, experiments and currents
+    # Defining impedances, experiments and currents
     background_value = feit.msd.BACK_COND
     z = feit.msd.Z_IMP
-    ####
 
-    ## Iteration limits
+    # Iteration limits
     step_limit = 20
     inner_step_limit = 300
 
     exp_cases = ["2_3", "4_1", "4_4"]
     methods = ["Lp|p=2", "TV1|p=2", "TV1|p=1.1"]
 
-    plot_iterations = False
     if plot_iterations:
         Path("reconstructions", "iterations").mkdir(parents=True, exist_ok=True)
 
     start_all = perf_counter()
     for exp_case in exp_cases:
-        ## Load experimental data
+        # Load experimental data
         U_delta, I_all = feit.msd.get_data_from_experiment(exp_case)
 
         noise_level = feit.msd.calc_noise_level(U_delta, I_all)
@@ -68,11 +66,16 @@ def main() -> None:
             inner_method, pp = method.split("|")
             pp = float(pp.split("=")[1])
 
-            #### EIT
+            # EIT inverse problem
             ip = feit.ip.InverseProblem(elec_mesh, U_delta, I_all, z)
 
-            ## Solver Parameters
+            # Solver parameters
             ip.set_solver_config(step_limit=step_limit)
+            ip.set_newton_parameters(
+                mu_start=0.3,
+                mu_max=0.999,
+                mu_theta=0.9,
+            )
             ip.set_inner_solver_config(
                 inner_method=inner_method,
                 inner_step_limit=inner_step_limit,
@@ -80,7 +83,7 @@ def main() -> None:
             ip.set_space_parameters(pp, 2)
             ip.set_penalty_beta(5)
 
-            ## First step
+            # Initial guess
             gamma_background = np.full(
                 elec_mesh.num_cells(),
                 background_value,
@@ -88,11 +91,11 @@ def main() -> None:
             )
             ip.set_initial_guess(gamma_background)
 
-            ## Noise Parameters
+            # Noise parameters
             tau = 1.5
             ip.set_noise_parameters(tau, noise_level)
 
-            ## Solver
+            # Solver
             space_name = "hilbert" if pp == 2 else "banach"
             filename = Path("logs") / f"exp_{exp_case}_{inner_method}_{space_name}.log"
 
@@ -232,4 +235,5 @@ def logger(filename="log.txt", *, mode="w"):
 
 
 if __name__ == "__main__":
-    main()
+    plot_iterations = True
+    main(plot_iterations=plot_iterations)

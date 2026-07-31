@@ -28,7 +28,9 @@ class InverseProblem(ForwardProblem):
     def __init__(self, elec_mesh, data, I_all, z):
         super().__init__(elec_mesh, z)
 
-        # Function Space CG degree 1 is necessary
+        # FiniteElement for CG (Continuous Galerkin) degree 1
+        # It's used later to construct both the potential FunctionSpace
+        # and the Mixed FunctionSpace in the forward solver.
         self.V = FiniteElement("CG", elec_mesh.ufl_cell(), 1)
         self.Q_DG = FunctionSpace(self.mesh, "DG", 0)
         self.I_all = I_all  # Current pattern used in data
@@ -37,24 +39,22 @@ class InverseProblem(ForwardProblem):
         self.I_all = np.array(self.I_all)
         self.l = len(self.I_all) if self.I_all.ndim == 2 else 1
 
-        ### Solver configuration
+        # Solver configuration
         self.step_limit = 20  # Outer iteration
         self.weight = np.ones(elec_mesh.num_cells())  # Initial weight function
-        self.use_weight = (
-            True  # Are you going to use the weight function in the Jacobian matrix?
-        )
+        self.use_weight = True  # Whether to apply weighting to the Jacobian matrix
         self.min_v = 0.005  # Minimal value for `gamma_n` elements
         self.verbose = True
 
-        ### Inner iteration configuration
+        # Inner iteration configuration
         self.inner_method = "Lp"  # Default inner regularization method
-        self.ME_reg = 15e-4  # Minimal Error step
+        self.ME_reg = 15e-4  # Step-size: minimal error method
         self.inner_step_limit = 50
         self.use_constant_inner_limit = True
         self.inner_step_start = 500
 
-        ### Newton tolerance parameters
-        self.mu_start = 0.3  # Used to compute the first two values of mu
+        # Newton tolerance parameters
+        self.mu_start = 0.1  # Used to compute the first two values of mu
         self.mu_max = 0.999  # Max mu in (0,1]
         self.mu_theta = 0.9  # Decreasing factor for last mu
         self.mu_constant = None
@@ -62,12 +62,12 @@ class InverseProblem(ForwardProblem):
         self.penalty_beta = 1.0  # Regularization penalty term
         self.TV_EPS = 1e-4  # Smooth TV
 
-        ### Banach spaces parameters
+        # Banach spaces parameters
         self.Lp_space = 2  # Input space X = Lp
         self.Lr_space = 2  # Data space Y = Lr
 
-        ### Creating a vector with all cell volumes.
-        ### It's useful for integrals in Lp(Omega).
+        # Creating a vector with all cell volumes.
+        # It's useful for integrals in Lp(Omega).
         cell_list = [cell.volume() for cell in cells(elec_mesh)]
         self.cell_arr = np.array(cell_list)
 
@@ -83,8 +83,8 @@ class InverseProblem(ForwardProblem):
         It iteratively solves the EIT problem using a Newton-like method.
         The solution is stored in the `gamma_n` attribute.
         """
-        ## Creating basic variables
-        self.step = 0  # Save outer step (singleton)
+        # Creating basic variables
+        self.step = 0  # Outer iteration step counter
         self.inner_step_list = []  # Save steps from inner loop
         res_list = []  # Save residuals along the iterations
         mu_list = []  # Save mu along the iterations
@@ -108,7 +108,7 @@ class InverseProblem(ForwardProblem):
             print(f"Stop when reaching {taudelta:.4f}% of the residual.")
             print(f"Initial residual (%): {res_list[0]:.6f}")
 
-        #### Solver
+        # Solver
         # n = 0 (self.step)
         x_n = np.copy(self.initial_guess_primal)
         xi_n = np.copy(self.initial_guess_dual)
@@ -133,7 +133,7 @@ class InverseProblem(ForwardProblem):
             b_n = y_delta - Fx_n
             misfit_n = self.lp_norm(b_n, "dOmega", ord_=r)
 
-            ## Saving progress
+            # Saving progress
             gamma_all.append(self.Cellsgamma_n)
             res_list.append(misfit_n / self.lp_norm(y_delta, "dOmega", ord_=r) * 100)
             self.inner_step_list.append(inner_step)
@@ -148,16 +148,16 @@ class InverseProblem(ForwardProblem):
                     f"mu (prev): {self.mu:.6f}"
                 )
 
-        # Store vectors in the memory object
+        # Save iteration history as instance attributes
         self.gamma_all = np.array(gamma_all)
         self.res_list = res_list
         self.mu_list = mu_list
 
     def solve_inner_newton(self, x_n, xi_n, b_n, mu_n, A_n):
         """
-        Solve the linearized problem (inner step).
+        Solve the linearized problem (inner loop).
 
-        This method is used to solve the inner step of the Newton method.
+        This method is used to solve the inner loop of the Newton method.
         It iteratively updates the solution `gamma_n` using
         different regularization methods.
         """
@@ -192,14 +192,14 @@ class InverseProblem(ForwardProblem):
         th_linear = mu_n * norm_b_n  # threshold
         kmax_n = self.calc_inner_step_limit(use_constant=self.use_constant_inner_limit)
         while linear_res >= th_linear and k < kmax_n:
-            ##### Gradient method, section 5.1
-            ## Compute direction vector
+            # Gradient method, section 5.1
+            # Compute direction vector
             if r == 2:
                 w_nk = A_nstar @ linear_diff
             else:
                 w_nk = A_nstar @ _duality_mapping(linear_diff, r)
-            ## Compute step-size: minimal error method
-            ## Described at section 7.3
+            # Compute step-size: minimal error method
+            # Described at section 7.3
             if p == 2 and r == 2:
                 lamb_nk = self.ME_reg * (
                     linear_res**2 / self.lp_norm(w_nk, "Omega") ** 2
@@ -211,7 +211,6 @@ class InverseProblem(ForwardProblem):
                 lamb2 = linear_res ** (r * (p - 1)) / d**p
 
                 lamb_nk = self.ME_reg * np.minimum(lamb1, lamb2)
-            ####
 
             xi_nk -= lamb_nk * w_nk
             x_nk = self.grad_conjugate(xi_nk, x0=x_nk)
@@ -523,14 +522,14 @@ class InverseProblem(ForwardProblem):
 
     def set_newton_parameters(self, **kwargs):
         """
-        Set parameters to determine the tolerance parameter mu
-        for the Newton inner step.
+        Set parameters to determine the tolerance parameter `mu`
+        for the Newton inner loop.
 
         Parameters
         ----------
         mu_start : float, optional
             Used to compute the first two values of mu.
-            Default is 0.3.
+            Default is 0.1.
         mu_max : float, optional
             Max value of mu in (0,1].
             Default is 0.999.

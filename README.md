@@ -2,7 +2,7 @@
 Inexact Newton regularization for solving the inverse problem of Electrical Impedance Tomography (EIT).
 
 
-### 🔧 Installation
+### Installation
 
 This project requires [FEniCS](https://fenicsproject.org/) to run.
 The recommended installation method is via [Miniconda](https://docs.conda.io/en/latest/miniconda.html) using the provided `environment.yml` file.
@@ -15,6 +15,29 @@ The recommended installation method is via [Miniconda](https://docs.conda.io/en/
    ```
 
 
+### Usage
+
+To run the EIT reconstructions for all experimental cases and generate the plots shown below,
+activate the environment and run:
+
+```sh
+python3 main.py
+```
+
+Upon completion, the generated plots will be saved in the `reconstructions/`, `electrodes-mesh/`, and `residuals/`
+directories, with execution history recorded in `logs/`.
+
+
+#### Parameter Estimation (Optional)
+
+If you modify the mesh resolution or electrode vertices, you can estimate the
+background conductivity and contact impedance by running:
+
+```sh
+python3 cond_z_estimation.py
+```
+
+
 ### Examples
 
 Reconstructions using the [KIT4](https://arxiv.org/abs/1704.01178) dataset.
@@ -24,13 +47,13 @@ Reconstructions using the [KIT4](https://arxiv.org/abs/1704.01178) dataset.
 ![REC44](https://raw.githubusercontent.com/mpauleti/eitinn/main/doc/images/rec_4_4.png)
 
 
-### 📖 References
+### References
 
 This code was based on the following [book](https://coloquio34.impa.br/pdf/34CBM07-eBook.pdf) (in Portuguese).
 The book repository is available [here](https://github.com/HafemannE/FEIT_CBM34).
 
 
-### 📘 Citation
+### Citation
 
 If you use this program in your work, please cite:
 

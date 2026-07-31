@@ -56,7 +56,7 @@ def plot_functions(
     axs = (ax,) if isinstance(ax, plt.Axes) else tuple(ax.flatten())
 
     if with_phantom:
-        ax0 = axs[0]  ## Phantom first
+        ax0 = axs[0]  # Phantom first
 
         photo_name = _get_filepath(f"eit_data/target_photos/fantom_{exp_case}.jpg")
         img = mpimg.imread(photo_name)
@@ -148,7 +148,7 @@ def plot_reconstructions(
     filename="reconstructions.pdf",
     close_fig=True,
 ):
-    ## Transform vectors to functions
+    # Transform vectors to functions
     funcs = []
     Q_DG = FunctionSpace(elec_mesh, "DG", 0)
     for reconstruction in reconstructions:
@@ -287,7 +287,7 @@ def plot_electrodes_mesh(
     axs = (ax,) if isinstance(ax, plt.Axes) else tuple(ax)
 
     if with_tank:
-        ax0 = axs[0]  ## Tank first
+        ax0 = axs[0]  # Tank first
 
         photo_name = _get_filepath("eit_data/target_photos/fantom_1_0.jpg")
         img = mpimg.imread(photo_name)
@@ -296,7 +296,7 @@ def plot_electrodes_mesh(
     ax1 = axs[1] if with_tank else axs[0]
     plt.sca(ax1)  # Set 'ax1' as the active axis
 
-    ## Mesh
+    # Mesh
     radius = elec_mesh.radius
     theta_vec = np.degrees(
         np.array(elec_mesh.electrodes.position)

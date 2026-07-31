@@ -8,16 +8,15 @@ from fenics import FiniteElement, Function, FunctionSpace
 from . import mesh as fmesh
 from .forward_problem import ForwardProblem
 
-#### CONST
-## Estimation results with (resolution, N_in, N_out) = (26, 20, 8).
-## For other values, you may run the file `cond_z_estimation.py`.
+# CONSTANTS
+# Estimation results with (resolution, N_in, N_out) = (26, 20, 8).
+# For other values, you may run `cond_z_estimation.py`.
 BACK_COND = 0.927201922231050  # Background conductivity
 Z_IMP = 0.011067821038742  # Impedance of each electrode
-####
 
 
 def get_tank_mesh(resolution, N_in, N_out):
-    # Basic Definitions
+    # Basic definitions
     radius = 14.0  # Tank radius: 14cm
     L = 16  # Number of electrodes
     elec_length = 2.5  # 2.5cm
@@ -108,7 +107,7 @@ def calc_noise_level(U_noised: np.ndarray, I: np.ndarray, *, ord_="fro") -> floa
 
 def estimate_cond_iter(U0, I_all, elec_mesh, z=None, *, zmin=1e-4, ord_=2):
     Q_DG = FunctionSpace(elec_mesh, "DG", 0)
-    # Solution Space Continuous Galerkin
+    # Solution space CG (Continuous Galerkin)
     VD = FiniteElement("CG", elec_mesh.ufl_cell(), 1)
 
     if z is None:
@@ -151,7 +150,7 @@ def estimate_cond(U0, I_all, elec_mesh, z, *, is_kuopio_tank=True):
     Returns a tuple with conductivity and potential estimates.
     """
     Q_DG = FunctionSpace(elec_mesh, "DG", 0)
-    # Solution Space Continuous Galerkin
+    # Solution space CG (Continuous Galerkin)
     VD = FiniteElement("CG", elec_mesh.ufl_cell(), 1)
 
     l, L = np.shape(I_all)

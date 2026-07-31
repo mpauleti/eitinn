@@ -2,12 +2,12 @@ import feit
 
 
 def main() -> None:
-    ## Mesh Parameters
+    # Mesh parameters
     resolution = 26  # Mesh resolution
     N_in = 20  # Number of vertices on electrodes
     N_out = 8  # Number of vertices on gaps
 
-    ## Defining mesh
+    # Defining mesh
     elec_mesh = feit.msd.get_tank_mesh(resolution, N_in, N_out)
 
     U0_bg, I_all = feit.msd.get_data_from_experiment("1_0")

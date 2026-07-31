@@ -67,7 +67,7 @@ class ForwardProblem:
         and calculates their sizes.
         """
         sub_domains = MeshFunction("size_t", self.mesh, self.mesh.topology().dim() - 1)
-        sub_domains.set_all(0)  # Marking all vertex/edges with False
+        sub_domains.set_all(0)  # Initialize all boundary facets to default subdomain
 
         # Pass electrode position to mesh
         # Here we have an array of objects that provide information
@@ -82,41 +82,41 @@ class ForwardProblem:
         for index, elec in enumerate(list_e, 1):
             elec.mark(sub_domains, index)
 
-        # Defining integration Domain on electrodes.
-        # Save in memory, set new attribute.
+        # Defining integration domain on electrodes.
         self.de = Measure("ds", domain=self.mesh, subdomain_data=sub_domains)
 
-        # Calc elec_size.
-        # Save in memory, set new attribute.
+        # Compute the arc length of each electrode via boundary integration.
         self.elec_size = np.array(
             [assemble(Constant(1) * self.de(i + 1)) for i in range(self.L)]
         )
 
-        # Save in memory, set new attribute.
         self.list_e = list_e
 
     def solve_forward(self, V, I_all, gamma):
         """
         Solver ForwardProblem for EIT 2D.
         """
-        de = self.de  # Getting integral domain from memory.
+        de = self.de
         Intde = self.elec_size  # Size of electrodes.
         mesh = self.mesh
-        V_FuncSpace = FunctionSpace(mesh, V)
 
         I_all = np.array(I_all)
         # Verify if it is a matrix or a vector
         l = len(I_all) if I_all.ndim == 2 else 1
 
-        ### FEM definition
+        # FEM definition
+        # Turns FiniteElement V into a standard scalar FunctionSpace
+        V_FuncSpace = FunctionSpace(mesh, V)
         # Vector in R^L for the electrodes
         RL = VectorElement("R", mesh.ufl_cell(), 0, dim=self.L)
-        R = FiniteElement("R", mesh.ufl_cell(), 0)  # Constant for lagrMult
+        # Constant for Lagrange multiplier
+        R = FiniteElement("R", mesh.ufl_cell(), 0)
         # Defining product space V x R^L x R
         W = FunctionSpace(mesh, MixedElement([V, RL, R]))
 
-        u0 = TrialFunction(W)  # Functions to be reconstructed.
-        v0 = TestFunction(W)  # Test functions.
+        # Trial and test functions for the coupled CEM system
+        u0 = TrialFunction(W)
+        v0 = TestFunction(W)
 
         u, un, ul = split(u0)
         v, vn, vl = split(v0)

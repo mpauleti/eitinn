@@ -116,7 +116,7 @@ def generate_electrodes_mesh(radius, resolution, N_in, N_out, electrodes):
     rotation_angle = electrodes.rotation_angle
     anticlockwise = electrodes.anticlockwise
 
-    # Generating Points
+    # Generating points
     points = []
     vertices_elec = []
     if not anticlockwise:
@@ -161,13 +161,12 @@ def generate_electrodes_mesh(radius, resolution, N_in, N_out, electrodes):
 
     points = np.array(points).flatten()
     domain = Polygon(points)  # Creates a polygon with the points.
-    dmesh = generate_mesh(domain, resolution)  # Generate the mesh.
 
-    dmesh.radius = radius  # Pass the radius as attribute.
-    dmesh.vertices_elec = (
-        vertices_elec  # Pass the vertex position of the electrodes as attribute.
-    )
-    dmesh.electrodes = electrodes  # Pass the electrodes object as attribute.
+    # Attach geometry parameters and electrode data to the mesh object
+    dmesh = generate_mesh(domain, resolution)
+    dmesh.radius = radius
+    dmesh.vertices_elec = vertices_elec
+    dmesh.electrodes = electrodes
 
     return dmesh
 
