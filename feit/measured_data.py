@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 
 import numpy as np
 import scipy.io as spio
@@ -21,35 +21,41 @@ def get_tank_mesh(resolution, N_in, N_out):
     radius = 14.0  # Tank radius: 14cm
     L = 16  # Number of electrodes
     elec_length = 2.5  # 2.5cm
-    per_cober = (L * elec_length) / (
-        2 * np.pi * radius
-    )  # Percentage of area covered by electrodes
+    coverage_fraction = (L * elec_length) / (2 * np.pi * radius)
     rotation_angle = np.pi / 2 - 0.5 * elec_length / radius
 
     # Return object with angular position of each electrode
-    electrodes = fmesh.Electrodes(L, per_cober, rotation_angle, anticlockwise=False)
+    electrodes = fmesh.Electrodes(
+        L,
+        coverage_fraction,
+        rotation_angle,
+        anticlockwise=False,
+    )
 
     # Defining mesh
     elec_mesh = fmesh.generate_electrodes_mesh(
-        radius, resolution, N_in, N_out, electrodes
+        radius,
+        resolution,
+        N_in,
+        N_out,
+        electrodes,
     )
     return elec_mesh
 
 
-def getdata_from_experiment(exp_case):
+def get_data_from_experiment(exp_case):
     mat = spio.loadmat(_get_filepath(f"eit_data/data_mat_files/datamat_{exp_case}.mat"))
     Uel = mat.get("Uel").T
     CP = mat.get("CurrentPattern").T
 
-    # Selecting Potentials
+    # Selecting potentials
     Uel_f = Uel[-15:]  # Matrix of measurements
 
     # Current
     I_all = CP[-15:] / np.sqrt(2)
 
-    #### Selecting Potentials
+    # Converting potentials to ground pattern
     U0_m = np.zeros_like(Uel_f)
-
     for i, U_potential in enumerate(Uel_f):
         U0_m[i] = convert_data(U_potential)
 
@@ -128,7 +134,10 @@ def estimate_cond_iter(U0, I_all, elec_mesh, z=None, *, zmin=1e-4, ord_=2):
         return residual
 
     result = scipy.optimize.minimize(
-        func, zmin, method="BFGS", args=(U0, I_all, elec_mesh, z, ord_)
+        func,
+        zmin,
+        method="BFGS",
+        args=(U0, I_all, elec_mesh, z, ord_),
     )
     z = result["x"]
 
@@ -136,7 +145,7 @@ def estimate_cond_iter(U0, I_all, elec_mesh, z=None, *, zmin=1e-4, ord_=2):
     return cond, z
 
 
-def estimate_cond(U0, I_all, elec_mesh, z, *, is_finn_tank=True):
+def estimate_cond(U0, I_all, elec_mesh, z, *, is_kuopio_tank=True):
     """
     Estimate the conductivity of the background based on noisy voltage measurements.
     Returns a tuple with conductivity and potential estimates.
@@ -156,7 +165,7 @@ def estimate_cond(U0, I_all, elec_mesh, z, *, is_finn_tank=True):
 
     z0 = np.max(z)
 
-    if is_finn_tank:
+    if is_kuopio_tank:
         elec_length = 2.5
     else:
         elec_length = elec_mesh.radius * (
@@ -178,9 +187,9 @@ def estimate_cond(U0, I_all, elec_mesh, z, *, is_finn_tank=True):
 
 
 def _get_filepath(path):
-    # Get the directory where this function is defined
-    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Get the directory containing this file
+    current_dir = Path(__file__).resolve().parent
     # Construct the path to a file relative to this directory
-    filepath = os.path.join(current_dir, path)
+    filepath = str(current_dir / path)
 
     return filepath

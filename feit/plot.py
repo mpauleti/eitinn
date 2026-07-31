@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 from typing import Literal
 
 import matplotlib.image as mpimg
@@ -31,25 +31,25 @@ def plot_functions(
     close_fig=True,
 ):
     try:
-        NFUNC = len(funcs)
+        nfuncs = len(funcs)
     except TypeError:
-        NFUNC = 1
+        nfuncs = 1
         funcs = [funcs]
 
     if isinstance(titles, str):
         titles = [titles]
 
     if titles is None:
-        NT = NFUNC + 1 if with_phantom else NFUNC
-        titles = ["" for _ in range(NT)]
+        ntitles = nfuncs + 1 if with_phantom else nfuncs
+        titles = ["" for _ in range(ntitles)]
 
-    nr, nc = (1, NFUNC + 1) if with_phantom else (1, NFUNC)
-    nr, nc = _adjust_dim((nr, nc), fig_max_cols)
+    nrows, ncols = (1, nfuncs + 1) if with_phantom else (1, nfuncs)
+    nrows, ncols = _adjust_dim((nrows, ncols), fig_max_cols)
 
     w, h = single_figsize
-    figsize = (nc * w, nr * h)
+    figsize = (ncols * w, nrows * h)
 
-    fig, ax = plt.subplots(nrows=nr, ncols=nc, figsize=figsize)
+    fig, ax = plt.subplots(nrows=nrows, ncols=ncols, figsize=figsize)
     fig.tight_layout()
 
     axs: tuple[plt.Axes, ...]
@@ -85,15 +85,24 @@ def plot_functions(
         if not with_colorbar:
             pass  # Nothing to do, skip all colorbar-related logic
         elif colorbar_display == "ind":
-            _create_colorbar(p, fig, axi, colorbar_fontsize=colorbar_fontsize)
+            _create_colorbar(
+                p,
+                fig,
+                axi,
+                colorbar_fontsize=colorbar_fontsize,
+            )
         elif colorbar_display == "all":
             p.set_clim(clim_min, clim_max)
 
-            last_subplot = i == NFUNC + istart - 1
+            last_subplot = i == nfuncs + istart - 1
             if last_subplot:
                 # Create a common colorbar
                 _create_colorbar(
-                    p, fig, ax=axs, colorbar_fontsize=colorbar_fontsize, pad=0.01
+                    p,
+                    fig,
+                    ax=axs,
+                    colorbar_fontsize=colorbar_fontsize,
+                    pad=0.01,
                 )
 
         axi.set_title(titles[i], fontsize=fontsize)
@@ -175,7 +184,7 @@ _markers = ["P", "o", "v", "s"]
 _colors = ["blue", "orange", "purple", "green"]
 _linestyles = ["dashed", "dashdot", "dotted", "solid"]
 
-_styles = list(zip(_linestyles, _markers, _colors))
+_styles = list(zip(_linestyles, _markers, _colors, strict=True))
 
 
 def _calc_iter_mult(max_len):
@@ -371,7 +380,12 @@ def _create_colorbar(
     shrink=0.8,
 ):
     cbar = fig.colorbar(
-        p, ax=ax, orientation=orientation, fraction=fraction, pad=pad, shrink=shrink
+        p,
+        ax=ax,
+        orientation=orientation,
+        fraction=fraction,
+        pad=pad,
+        shrink=shrink,
     )
     cbar.outline.set_visible(True)  # Ensure the outline is visible
     cbar.ax.yaxis.set_ticks_position("right")  # Set tick position
@@ -391,9 +405,9 @@ def _save_fig(fig, filename, *, dpi=300):
 
 
 def _get_filepath(path):
-    # Get the directory where this function is defined
-    current_dir = os.path.dirname(os.path.abspath(__file__))
+    # Get the directory containing this file
+    current_dir = Path(__file__).resolve().parent
     # Construct the path to a file relative to this directory
-    filepath = os.path.join(current_dir, path)
+    filepath = str(current_dir / path)
 
     return filepath

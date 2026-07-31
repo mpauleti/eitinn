@@ -1,6 +1,6 @@
 import functools
-import os
 import sys
+from pathlib import Path
 from time import perf_counter
 
 import numpy as np
@@ -10,10 +10,10 @@ import feit.plot as fplot
 
 
 def main() -> None:
-    os.makedirs("logs", exist_ok=True)
-    os.makedirs("electrodes-mesh", exist_ok=True)
-    os.makedirs("reconstructions", exist_ok=True)
-    os.makedirs("residuals", exist_ok=True)
+    Path("logs").mkdir(parents=True, exist_ok=True)
+    Path("electrodes-mesh").mkdir(parents=True, exist_ok=True)
+    Path("reconstructions").mkdir(parents=True, exist_ok=True)
+    Path("residuals").mkdir(parents=True, exist_ok=True)
 
     # Mesh Parameters
     resolution = 26  # Mesh resolution
@@ -29,13 +29,13 @@ def main() -> None:
     fplot.plot_electrodes_mesh(
         elec_mesh,
         save=True,
-        filename="electrodes-mesh/electrodes_mesh.pdf",
+        filename=Path("electrodes-mesh") / "electrodes_mesh.pdf",
     )
     fplot.plot_electrodes_mesh(
         elec_mesh,
         with_tank=True,
         save=True,
-        filename="electrodes-mesh/electrodes_mesh_tank.pdf",
+        filename=Path("electrodes-mesh") / "electrodes_mesh_tank.pdf",
     )
 
     #### Defining impedances, experiments and currents
@@ -52,12 +52,12 @@ def main() -> None:
 
     plot_iterations = False
     if plot_iterations:
-        os.makedirs("reconstructions/iterations", exist_ok=True)
+        Path("reconstructions", "iterations").mkdir(parents=True, exist_ok=True)
 
     start_all = perf_counter()
     for exp_case in exp_cases:
         ## Load experimental data
-        U_delta, I_all = feit.msd.getdata_from_experiment(exp_case)
+        U_delta, I_all = feit.msd.get_data_from_experiment(exp_case)
 
         noise_level = feit.msd.calc_noise_level(U_delta, I_all)
         print(f"Noise level (%): {noise_level * 100:.6f}")
@@ -72,16 +72,19 @@ def main() -> None:
             ip = feit.ip.InverseProblem(elec_mesh, U_delta, I_all, z)
 
             ## Solver Parameters
-            ip.set_solverconfig(step_limit=step_limit)
-            ip.set_inner_solverconfig(
-                inner_method=inner_method, inner_step_limit=inner_step_limit
+            ip.set_solver_config(step_limit=step_limit)
+            ip.set_inner_solver_config(
+                inner_method=inner_method,
+                inner_step_limit=inner_step_limit,
             )
-            ip.set_Lebesgue(pp, 2)
+            ip.set_space_parameters(pp, 2)
             ip.set_penalty_beta(5)
 
             ## First step
             gamma_background = np.full(
-                elec_mesh.num_cells(), background_value, dtype=float
+                elec_mesh.num_cells(),
+                background_value,
+                dtype=float,
             )
             ip.set_initial_guess(gamma_background)
 
@@ -91,7 +94,7 @@ def main() -> None:
 
             ## Solver
             space_name = "hilbert" if pp == 2 else "banach"
-            filename = f"logs/exp_{exp_case}_{inner_method}_{space_name}.log"
+            filename = Path("logs") / f"exp_{exp_case}_{inner_method}_{space_name}.log"
 
             solve_ip_with_log(ip, filename)
 
@@ -104,6 +107,9 @@ def main() -> None:
                 titles = ["Inclusions", "Initial Guess"]
                 titles += [f"Iteration {i}" for i in range(1, len(ip.gamma_all))]
 
+                output_dir = Path("reconstructions", "iterations")
+                base_name = f"recs_{exp_case}_{inner_method}_{space_name}"
+
                 fplot.plot_reconstructions(
                     ip.gamma_all,
                     elec_mesh,
@@ -114,7 +120,7 @@ def main() -> None:
                     with_phantom=True,
                     exp_case=exp_case,
                     save=True,
-                    filename=f"reconstructions/iterations/recs_{exp_case}_{inner_method}_{space_name}_all.pdf",
+                    filename=output_dir / f"{base_name}_all.pdf",
                 )
 
                 fplot.plot_reconstructions(
@@ -127,7 +133,7 @@ def main() -> None:
                     with_phantom=True,
                     exp_case=exp_case,
                     save=True,
-                    filename=f"reconstructions/iterations/recs_{exp_case}_{inner_method}_{space_name}_ind.pdf",
+                    filename=output_dir / f"{base_name}_ind.pdf",
                 )
 
         titles = ["Inclusions"]
@@ -143,7 +149,7 @@ def main() -> None:
             with_phantom=True,
             exp_case=exp_case,
             save=True,
-            filename=f"reconstructions/recs_{exp_case}_all.pdf",
+            filename=Path("reconstructions") / f"recs_{exp_case}_all.pdf",
         )
 
         fplot.plot_reconstructions(
@@ -156,13 +162,13 @@ def main() -> None:
             with_phantom=True,
             exp_case=exp_case,
             save=True,
-            filename=f"reconstructions/recs_{exp_case}_ind.pdf",
+            filename=Path("reconstructions") / f"recs_{exp_case}_all.pdf",
         )
 
         fplot.plot_residuals(
             residual_list,
             save=True,
-            filename=f"residuals/residuals_{exp_case}.pdf",
+            filename=Path("residuals") / f"residuals_{exp_case}.pdf",
         )
 
     end_all = perf_counter()
@@ -175,7 +181,7 @@ def solve_ip_with_log(ip, filename):
 
     msg = f"Sum of all inner steps: {np.sum(ip.inner_step_list)}"
     print(msg)
-    with open(filename, "a") as f:
+    with Path(filename).open("a") as f:
         f.write(msg)
         f.write("\n")
 
@@ -184,7 +190,7 @@ class Tee:
     """A class that duplicates output to both stdout and a file."""
 
     def __init__(self, filename, *, mode="w"):
-        self.file = open(filename, mode)
+        self.file = Path(filename).open(mode)  # noqa: SIM115
         self.stdout = sys.stdout  # Store original stdout
 
     def write(self, message):

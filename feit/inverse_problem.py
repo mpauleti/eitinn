@@ -96,11 +96,11 @@ class InverseProblem(ForwardProblem):
         Fx_n = self.eval_forward_op(self.V, self.I_all, self.gamma_n)
 
         b_n = y_delta - Fx_n
-        misfit_n = self.norm_funcLp(b_n, "dOmega", ord_=r)
+        misfit_n = self.lp_norm(b_n, "dOmega", ord_=r)
 
         # Save status
         # Residual list
-        res_list.append(misfit_n / self.norm_funcLp(y_delta, "dOmega", ord_=r) * 100)
+        res_list.append(misfit_n / self.lp_norm(y_delta, "dOmega", ord_=r) * 100)
 
         # Print information
         if self.verbose:
@@ -117,11 +117,12 @@ class InverseProblem(ForwardProblem):
         th = self.tau * self.noise_level  # threshold
         while res_list[self.step] / 100 > th and self.step < self.step_limit:
             mu_n = self.calc_tolerance(
-                res_list[self.step] / 100, constant_value=self.mu_constant
+                res_list[self.step] / 100,
+                constant_value=self.mu_constant,
             )
             A_n = self.calc_jacobian()
 
-            x_n, xi_n, inner_step = self.solve_innerNewton(x_n, xi_n, b_n, mu_n, A_n)
+            x_n, xi_n, inner_step = self.solve_inner_newton(x_n, xi_n, b_n, mu_n, A_n)
             self.step += 1
 
             self.Cellsgamma_n = np.copy(x_n)
@@ -130,13 +131,11 @@ class InverseProblem(ForwardProblem):
             Fx_n = self.eval_forward_op(self.V, self.I_all, self.gamma_n)
 
             b_n = y_delta - Fx_n
-            misfit_n = self.norm_funcLp(b_n, "dOmega", ord_=r)
+            misfit_n = self.lp_norm(b_n, "dOmega", ord_=r)
 
             ## Saving progress
             gamma_all.append(self.Cellsgamma_n)
-            res_list.append(
-                misfit_n / self.norm_funcLp(y_delta, "dOmega", ord_=r) * 100
-            )
+            res_list.append(misfit_n / self.lp_norm(y_delta, "dOmega", ord_=r) * 100)
             self.inner_step_list.append(inner_step)
             mu_list.append(mu_n)
 
@@ -154,7 +153,7 @@ class InverseProblem(ForwardProblem):
         self.res_list = res_list
         self.mu_list = mu_list
 
-    def solve_innerNewton(self, x_n, xi_n, b_n, mu_n, A_n):
+    def solve_inner_newton(self, x_n, xi_n, b_n, mu_n, A_n):
         """
         Solve the linearized problem (inner step).
 
@@ -167,7 +166,7 @@ class InverseProblem(ForwardProblem):
         pstar = p / (p - 1)
         # rstar = r / (r - 1)
         kappa = np.maximum(p, 2)
-        norm_b_n = self.norm_funcLp(b_n, "dOmega", ord_=r)
+        norm_b_n = self.lp_norm(b_n, "dOmega", ord_=r)
 
         # If we are using weights, compute and store them.
         if self.use_weight and self.step == 0:
@@ -198,15 +197,15 @@ class InverseProblem(ForwardProblem):
             if r == 2:
                 w_nk = A_nstar @ linear_diff
             else:
-                w_nk = A_nstar @ _dm(linear_diff, r)
+                w_nk = A_nstar @ _duality_mapping(linear_diff, r)
             ## Compute step-size: minimal error method
             ## Described at section 7.3
             if p == 2 and r == 2:
                 lamb_nk = self.ME_reg * (
-                    linear_res**2 / self.norm_funcLp(w_nk, "Omega") ** 2
+                    linear_res**2 / self.lp_norm(w_nk, "Omega") ** 2
                 )
             else:
-                d = self.norm_funcLp(w_nk, "Omega", ord_=pstar)  # denominator
+                d = self.lp_norm(w_nk, "Omega", ord_=pstar)  # denominator
 
                 lamb1 = linear_res ** (r * (kappa - 1)) / d**kappa
                 lamb2 = linear_res ** (r * (p - 1)) / d**p
@@ -220,7 +219,7 @@ class InverseProblem(ForwardProblem):
             x_nk, xi_nk = self.filter_low_values(x_nk, xi_nk)
 
             linear_diff = A_n @ (x_nk - x_n) - b_n
-            linear_res = self.norm_funcLp(linear_diff, "dOmega", ord_=r)
+            linear_res = self.lp_norm(linear_diff, "dOmega", ord_=r)
 
             k += 1
 
@@ -257,7 +256,7 @@ class InverseProblem(ForwardProblem):
                 return np.copy(xi)
 
             pstar = p / (p - 1)
-            return _dm(xi, pstar)
+            return _duality_mapping(xi, pstar)
 
         if self.inner_method == "Sparse1":
             p = self.Lp_space
@@ -300,9 +299,9 @@ class InverseProblem(ForwardProblem):
 
             return _minacc(objgrad, x0, ord_=self.Lp_space)[0]
 
-        return None
+        raise ValueError(f"unexpected inner method: {self.inner_method}")
 
-    def __grad_TV(self, x):
+    def __grad_tv(self, x):
         L = self.TV_L
         LT = self.TV_LT
 
@@ -317,11 +316,11 @@ class InverseProblem(ForwardProblem):
         p = self.Lp_space
         beta = self.penalty_beta
 
-        grad_TV_x = self.__grad_TV(x)
+        grad_tv_x = self.__grad_tv(x)
 
         if self.inner_method == "TV2":
-            return grad_TV_x + (1 / beta) * _dm(x, p) - xi
-        return beta * grad_TV_x + _dm(x, p) - xi
+            return grad_tv_x + (1 / beta) * _duality_mapping(x, p) - xi
+        return beta * grad_tv_x + _duality_mapping(x, p) - xi
 
     def calc_jacobian(self):
         """
@@ -345,7 +344,8 @@ class InverseProblem(ForwardProblem):
         # Separating electrodes data
         select_data = np.tile(range(self.L), self.l)
         select_data = np.split(
-            select_data, np.where(select_data[:-1] == self.L - 1)[0] + 1
+            select_data,
+            np.where(select_data[:-1] == self.L - 1)[0] + 1,
         )
 
         Q_DG = VectorFunctionSpace(self.mesh, "DG", 0, dim=2)
@@ -415,7 +415,7 @@ class InverseProblem(ForwardProblem):
         self.mu = mu
         return mu
 
-    def norm_funcLp(self, func_arr, domain, *, ord_=2):
+    def lp_norm(self, func_arr, domain, *, ord_=2):
         """
         Computes the Lp norm of a function for the given domain ("Omega" or "dOmega").
         """
@@ -431,7 +431,7 @@ class InverseProblem(ForwardProblem):
             # measure = ds
             measure = self.size_elec_vec
         else:
-            raise ValueError(f"Unknown domain: {domain}")
+            raise ValueError(f"unexpected domain: {domain}")
 
         if p == 2:
             return np.sqrt(np.sum((func_arr**2) * measure))
@@ -446,13 +446,13 @@ class InverseProblem(ForwardProblem):
         self.gamma_n.vector()[:] = x0
 
         if self.inner_method in ["TV1", "TV2"]:
-            L = self.__assemble_L()
+            L = self.__assemble_tv_diff_matrix()
             self.TV_L = L
             self.TV_LT = L.T
 
         self.initial_guess_dual = self.__primal_to_dual(x0)
 
-    def __assemble_L(self):
+    def __assemble_tv_diff_matrix(self):
         mesh = self.mesh
         D = mesh.topology().dim()
         mesh.init()  # Build connectivity between facets and cells
@@ -478,50 +478,50 @@ class InverseProblem(ForwardProblem):
         if self.inner_method == "Lp":
             if p == 2:
                 return np.copy(x)
-            return _dm(x, p)
+            return _duality_mapping(x, p)
 
         if self.inner_method == "Sparse1":
             beta = self.penalty_beta
 
             if p == 2:
-                return beta * _subL1(x) + x
-            return beta * _subL1(x) + _dm(x, p)
+                return beta * _subgradient_l1(x) + x
+            return beta * _subgradient_l1(x) + _duality_mapping(x, p)
 
         if self.inner_method == "Sparse2":
             beta = self.penalty_beta
 
             if p == 2:
-                return _subL1(x) + (1 / beta) * x
-            return _subL1(x) + (1 / beta) * _dm(x, p)
+                return _subgradient_l1(x) + (1 / beta) * x
+            return _subgradient_l1(x) + (1 / beta) * _duality_mapping(x, p)
 
         if self.inner_method == "TV1":
             beta = self.penalty_beta
 
-            grad_TV_x = self.__grad_TV(x)
+            grad_TV_x = self.__grad_tv(x)
 
             if p == 2:
                 return beta * grad_TV_x + x
-            return beta * grad_TV_x + _dm(x, p)
+            return beta * grad_TV_x + _duality_mapping(x, p)
 
         if self.inner_method == "TV2":
             beta = self.penalty_beta
 
-            grad_TV_x = self.__grad_TV(x)
+            grad_TV_x = self.__grad_tv(x)
 
             if p == 2:
                 return grad_TV_x + (1 / beta) * x
-            return grad_TV_x + (1 / beta) * _dm(x, p)
+            return grad_TV_x + (1 / beta) * _duality_mapping(x, p)
 
-        return None
+        raise ValueError(f"unexpected inner method: {self.inner_method}")
 
-    def set_Lebesgue(self, p, r):
+    def set_space_parameters(self, p, r):
         self.Lp_space = p
         self.Lr_space = r
 
     def set_penalty_beta(self, beta):
         self.penalty_beta = beta
 
-    def set_Newton_parameters(self, **kwargs):
+    def set_newton_parameters(self, **kwargs):
         """
         Set parameters to determine the tolerance parameter mu
         for the Newton inner step.
@@ -559,7 +559,7 @@ class InverseProblem(ForwardProblem):
         self.tau = tau
         self.noise_level = noise_level
 
-    def set_solverconfig(self, **kwargs):
+    def set_solver_config(self, **kwargs):
         """
         Set solver configuration for the inverse problem.
 
@@ -589,7 +589,7 @@ class InverseProblem(ForwardProblem):
                 raise ValueError(f"{key} is not a valid attribute")
             setattr(self, key, value)
 
-    def set_inner_solverconfig(self, **kwargs):
+    def set_inner_solver_config(self, **kwargs):
         """
         Set solver configuration for the inner iteration.
 
@@ -629,13 +629,13 @@ class InverseProblem(ForwardProblem):
             setattr(self, key, value)
 
 
-def _dm(x, p):  # duality mapping
+def _duality_mapping(x, p):
     if p == 2:
         return x
     return np.sign(x) * np.abs(x) ** (p - 1)
 
 
-def _subL1(x):
+def _subgradient_l1(x):
     g = np.sign(x)
     mask = np.isclose(x, 0)
     g[mask] = 0  # any value in [-1, 1]

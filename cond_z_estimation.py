@@ -10,7 +10,7 @@ def main() -> None:
     ## Defining mesh
     elec_mesh = feit.msd.get_tank_mesh(resolution, N_in, N_out)
 
-    U0_bg, I_all = feit.msd.getdata_from_experiment("1_0")
+    U0_bg, I_all = feit.msd.get_data_from_experiment("1_0")
 
     print("Estimating...")
     cond, z = feit.msd.estimate_cond_iter(U0_bg, I_all, elec_mesh)

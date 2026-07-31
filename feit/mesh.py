@@ -11,8 +11,8 @@ class Electrodes:
     ----------
     L : int
         Number of electrodes.
-    per_cober : float
-        Percentage of the boundary length covered by electrodes,
+    coverage_fraction : float
+        Fraction of the boundary length covered by electrodes,
         between 0 and 1.
     rotation_angle : float, optional
         Rotation angle for the initial position of
@@ -24,22 +24,23 @@ class Electrodes:
         positions (in angles) of each electrode.
     """
 
-    def __init__(self, L, per_cober, rotation_angle=0, *, anticlockwise=True):
+    def __init__(self, L, coverage_fraction, rotation_angle=0, *, anticlockwise=True):
         if not isinstance(L, int):
             raise TypeError("Number of electrodes (L) must be an int.")
-        if not isinstance(per_cober, float):
-            raise TypeError("`per_cober` must be a float.")
+        if not isinstance(coverage_fraction, float):
+            raise TypeError("`coverage_fraction` must be a float.")
         if not isinstance(rotation_angle, (int, float)):
             raise TypeError("`rotation_angle` must be an int or float.")
         if not isinstance(anticlockwise, bool):
             raise TypeError("`anticlockwise` must be a boolean.")
-        if per_cober > 1:
+        if coverage_fraction > 1:
             raise ValueError(
-                "`per_cober` must be less or equal to 1. Example (75%): per_cober=0.75"
+                "`coverage_fraction` must be less or equal to 1. "
+                "Example (75%): coverage_fraction=0.75"
             )
 
         self.L = L
-        self.per_cober = per_cober
+        self.coverage_fraction = coverage_fraction
         self.rotation_angle = rotation_angle
         self.anticlockwise = anticlockwise
         self.position = self.__calc_position()
@@ -48,8 +49,8 @@ class Electrodes:
         """
         Calculates and returns the positions of the electrodes.
         """
-        size_e = 2 * np.pi / self.L * self.per_cober  # Size electrodes
-        size_gap = 2 * np.pi / self.L * (1 - self.per_cober)  # Size gaps
+        size_e = 2 * np.pi / self.L * self.coverage_fraction  # Size electrodes
+        size_gap = 2 * np.pi / self.L * (1 - self.coverage_fraction)  # Size gaps
         rotation_angle = self.rotation_angle  # Rotating original solution
 
         electrodes = [

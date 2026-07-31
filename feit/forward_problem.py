@@ -191,9 +191,8 @@ class ElectrodeDomain(SubDomain):
     are defined and marks the mesh.
     """
 
-    def __init__(
-        self, mesh_vertex, L
-    ):  # Observe that mesh_vertex corresponds to electrode i.
+    def __init__(self, mesh_vertex, L):
+        # Observe that mesh_vertex corresponds to electrode i.
         super().__init__()
         self.mesh_vertex = np.array(
             mesh_vertex
