@@ -165,7 +165,7 @@ def main(plot_iterations=False) -> None:
             with_phantom=True,
             exp_case=exp_case,
             save=True,
-            filename=Path("reconstructions") / f"recs_{exp_case}_all.pdf",
+            filename=Path("reconstructions") / f"recs_{exp_case}_ind.pdf",
         )
 
         fplot.plot_residuals(
@@ -235,5 +235,5 @@ def logger(filename="log.txt", *, mode="w"):
 
 
 if __name__ == "__main__":
-    plot_iterations = True
+    plot_iterations = False
     main(plot_iterations=plot_iterations)
