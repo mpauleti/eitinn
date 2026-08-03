@@ -1,13 +1,16 @@
 # EITINN
-Inexact Newton regularization for solving the inverse problem of Electrical Impedance Tomography (EIT).
+Inexact Newton regularization for solving the inverse problem of Electrical Impedance
+Tomography (EIT).
 
 
 ### Installation
 
-This project requires [FEniCS](https://fenicsproject.org/) to run.
-The recommended installation method is via [Miniconda](https://docs.conda.io/en/latest/miniconda.html) using the provided `environment.yml` file.
+This project requires [FEniCS](https://fenicsproject.org/) to run. The recommended
+installation method is via [Miniconda](https://docs.conda.io/en/latest/miniconda.html)
+using the provided `environment.yml` file.
 
-1. **Install Miniconda** if you haven't already. You can download it from [here](https://docs.conda.io/en/latest/miniconda.html).
+1. **Install Miniconda** if you haven't already. You can download it from
+   [here](https://docs.conda.io/en/latest/miniconda.html).
 2. **Create and activate the environment** using the provided configuration file:
    ```sh
    conda env create --file environment.yml
@@ -17,21 +20,29 @@ The recommended installation method is via [Miniconda](https://docs.conda.io/en/
 
 ### Usage
 
-To run the EIT reconstructions for all experimental cases and generate the plots shown below,
-activate the environment and run:
+To run the EIT reconstructions for the experimental cases shown below, activate
+the environment and run:
 
 ```sh
 python3 main.py
 ```
 
-Upon completion, the generated plots will be saved in the `reconstructions/`, `electrodes-mesh/`, and `residuals/`
-directories, with execution history recorded in `logs/`.
+Upon completion, the generated plots will be saved in the `reconstructions/`,
+`electrodes-mesh/`, and `residuals/` directories, with execution history recorded in
+`logs/`.
+
+
+#### Plotting Iteration History (Optional)
+
+By default, only the final reconstruction results are saved. To plot and save the
+intermediate reconstruction progression at each iteration step, open `main.py` and
+set `plot_iterations = True`. When enabled, iteration-by-iteration plots will be
+saved in the `reconstructions/iterations/` directory.
 
 
 #### Parameter Estimation (Optional)
 
-If you modify the mesh resolution or electrode vertices, you can estimate the
-background conductivity and contact impedance by running:
+You can estimate the background conductivity and contact impedance by running:
 
 ```sh
 python3 cond_z_estimation.py
@@ -49,7 +60,8 @@ Reconstructions using the [KIT4](https://arxiv.org/abs/1704.01178) dataset.
 
 ### References
 
-This code was based on the following [book](https://coloquio34.impa.br/pdf/34CBM07-eBook.pdf) (in Portuguese).
+This code was based on the following
+[book](https://coloquio34.impa.br/pdf/34CBM07-eBook.pdf) (in Portuguese).
 The book repository is available [here](https://github.com/HafemannE/FEIT_CBM34).
 
 
