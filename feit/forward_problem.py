@@ -1,17 +1,17 @@
 import numpy as np
-import scipy.sparse
-import scipy.sparse.linalg
 from fenics import (
     Constant,
     FiniteElement,
     Function,
     FunctionSpace,
+    LUSolver,
     Measure,
     MeshFunction,
     MixedElement,
     SubDomain,
     TestFunction,
     TrialFunction,
+    Vector,
     VectorElement,
     assemble,
     between,
@@ -31,11 +31,12 @@ class ForwardProblem:
         self.mesh = elec_mesh
         self.radius = elec_mesh.radius
         self.elec_pos = elec_mesh.electrodes.position
-        self.L = len(self.elec_pos)  # L electrodes
+        self.num_electrodes = len(self.elec_pos)
         self.z = z
         # See the function below, which uses the ElectrodeDomain class
         # to set the electrodes region.
         self.__electrodes()
+        self.__space_cache = {}
 
     @property
     def z(self):
@@ -44,7 +45,7 @@ class ForwardProblem:
     @z.setter
     def z(self, value):
         if isinstance(value, float):
-            self.__z = np.full(self.L, value)
+            self.__z = np.full(self.num_electrodes, value)
             return
         if not isinstance(value, np.ndarray):
             raise TypeError("`z` must be a float or 1D np.ndarray.")
@@ -52,11 +53,12 @@ class ForwardProblem:
             value = value[0]
             if not isinstance(value, float):
                 raise TypeError("`z` must be a float or 1D np.ndarray.")
-            self.__z = np.full(self.L, value)
+            self.__z = np.full(self.num_electrodes, value)
             return
-        if value.shape != (self.L,):
+        if value.shape != (self.num_electrodes,):
             raise ValueError(
-                f"`z` must have shape `(L,)` (L = {self.L}), "
+                "`z` must have shape `(num_electrodes,)` "
+                f"(num_electrodes = {self.num_electrodes}), "
                 f"but got an array with shape {value.shape}."
             )
         self.__z = np.array(value, dtype=float)
@@ -73,7 +75,8 @@ class ForwardProblem:
         # Here we have an array of objects that provide information
         # about the vertices of each electrode in the mesh.
         list_e = [
-            ElectrodeDomain(self.mesh.vertices_elec[i], self.L) for i in range(self.L)
+            ElectrodeDomain(self.mesh.vertices_elec[i], self.num_electrodes)
+            for i in range(self.num_electrodes)
         ]
 
         # Mark electrodes in subdomain
@@ -87,28 +90,22 @@ class ForwardProblem:
 
         # Compute the arc length of each electrode via boundary integration.
         self.elec_size = np.array(
-            [assemble(Constant(1) * self.de(i + 1)) for i in range(self.L)]
+            [assemble(Constant(1) * self.de(i + 1)) for i in range(self.num_electrodes)]
         )
 
         self.list_e = list_e
 
-    def solve_forward(self, V, I_all, gamma):
-        """
-        Solver ForwardProblem for EIT 2D.
-        """
-        de = self.de
-        Intde = self.elec_size  # Size of electrodes.
-        mesh = self.mesh
+    def __get_cached_spaces(self, V):
+        if V in self.__space_cache:
+            return self.__space_cache[V]
 
-        I_all = np.array(I_all)
-        # Verify if it is a matrix or a vector
-        l = len(I_all) if I_all.ndim == 2 else 1
+        mesh = self.mesh
 
         # FEM definition
         # Turns FiniteElement V into a standard scalar FunctionSpace
         V_FuncSpace = FunctionSpace(mesh, V)
         # Vector in R^L for the electrodes
-        RL = VectorElement("R", mesh.ufl_cell(), 0, dim=self.L)
+        RL = VectorElement("R", mesh.ufl_cell(), 0, dim=self.num_electrodes)
         # Constant for Lagrange multiplier
         R = FiniteElement("R", mesh.ufl_cell(), 0)
         # Defining product space V x R^L x R
@@ -118,60 +115,100 @@ class ForwardProblem:
         u0 = TrialFunction(W)
         v0 = TestFunction(W)
 
-        u, un, ul = split(u0)
-        v, vn, vl = split(v0)
+        u, u_elec, u_lambda = split(u0)
+        v, v_elec, v_lambda = split(v0)
 
-        # Integral(gamma*<grad_u, grad_v>) dOmega + lagrMult
-        A_inner = assemble(gamma * inner(grad(u), grad(v)) * dx)
+        de = self.de  # Integration domain on electrodes.
 
-        # Integral(v_i*u_mult + u_i*v_mult) d(electrode_i)
-        lagrMult = np.sum(
-            [(vn[i] * ul + un[i] * vl) * de(i + 1) for i in range(self.L)]
+        # Lagrange Multiplier term to set a ground reference (sum of U_i = 0).
+        # Without this, the voltage system has infinite solutions (u + const).
+        # Integral(V_i * U_lambda + U_i * V_lambda) d(electrode_i)
+        lagr_mult_form = sum(
+            (v_elec[i] * u_lambda + u_elec[i] * v_lambda) * de(i + 1)
+            for i in range(self.num_electrodes)
         )
-        self.A_lagr = assemble(lagrMult)
 
-        # Integral((1/zi)*(u - U_i)*(v - V_i)) d(electrode_i)
-        A_imp_0 = [
-            assemble((u - un[i]) * (v - vn[i]) * de(i + 1)) for i in range(self.L)
+        # Contact impedance term in the weak formulation:
+        # Integral((1/zi) * (u - U_i) * (v - V_i)) d(electrode_i)
+        # Note: (1/zi) is multiplied later to complete the term.
+        A_imp_0_forms = [
+            (u - u_elec[i]) * (v - v_elec[i]) * de(i + 1)
+            for i in range(self.num_electrodes)
         ]
-        self.A_imp_0 = A_imp_0
-        A_imp = np.sum(self.A_imp_0 * 1 / self.z)
 
-        # Make matrix to solve Ax = b
-        # We only assemble this matrix once.
-        # If we have multiple measurements, we reuse it.
-        A = A_inner + A_imp + self.A_lagr
-        A = scipy.sparse.csc_matrix(A.array())
+        # Right-hand side (b) of the linear system Ax = b.
+        # In the weak formulation, the current pattern term is sum(I_i * V_i).
+        # Since V_i is constant on the electrode,
+        # Integral(V_i) d(electrode_i) = V_i * size(electrode_i).
+        # To isolate V_i, we must divide the integral by the electrode size.
+        b0 = [
+            assemble(v_elec[i] * (1 / self.elec_size[i]) * de(i + 1))
+            for i in range(self.num_electrodes)
+        ]
+        b0_np = np.array([b.get_local() for b in b0])
 
-        # Split the w function into 3 parts:
-        # The function in H (= V), the vector in R^L, and the constant lagrMult.
-        w = Function(W)  # Define a zero function based in W
-        # u = w.split()[0]  # Get only the function in H
         dm0 = W.sub(0).dofmap()
         dm1 = W.sub(1).dofmap()
 
-        # Ax = sum(I_i*V_i)...
-        # We integrate over the electrodes and divide by their size.
-        # If we don't do this, we get an error.
-        b0 = [assemble(vn[i] * (1 / Intde[i]) * de(i + 1)) for i in range(self.L)]
+        cached = (V_FuncSpace, W, dm0, dm1, lagr_mult_form, A_imp_0_forms, b0_np)
+        self.__space_cache[V] = cached
+        return cached
+
+    def solve_forward(self, V, I_all, gamma):
+        """
+        Solver ForwardProblem for EIT 2D.
+        """
+        V_FuncSpace, W, dm0, dm1, lagr_mult_form, A_imp_0_forms, b0_np = (
+            self.__get_cached_spaces(V)
+        )
+        I_all = np.array(I_all)
+
+        # Verify if it is a matrix or a vector
+        num_patterns = len(I_all) if I_all.ndim == 2 else 1
+
+        u0 = TrialFunction(W)
+        v0 = TestFunction(W)
+        u = split(u0)[0]
+        v = split(v0)[0]
+
+        # Integral(gamma * <grad_u, grad_v>) dOmega
+        A_inner_form = gamma * inner(grad(u), grad(v)) * dx
+
+        # Integral((1/zi) * (u - U_i) * (v - V_i)) d(electrode_i)
+        A_imp_form = sum(
+            (1 / self.z[i]) * A_imp_0_forms[i] for i in range(self.num_electrodes)
+        )
+
+        # Make matrix to solve Ax = b
+        A_form = A_inner_form + A_imp_form + lagr_mult_form
+        A_fenics = assemble(A_form)
+
+        solver = LUSolver(A_fenics)
+
+        # Precompute right-hand sides for all current patterns in bulk
+        if I_all.ndim == 2:
+            B_np = I_all @ b0_np  # shape: (num_patterns, N_dofs)
+        else:
+            B_np = (I_all @ b0_np)[np.newaxis, :]  # shape: (1, N_dofs)
+
+        b_vec = Vector()
+        x_vec = Vector()
+        A_fenics.init_vector(b_vec, 0)
+        A_fenics.init_vector(x_vec, 1)
 
         u_list = []
         U_list = []
-        for j in range(l):
-            I = I_all[j] if l != 1 else I_all  # Is it one measure or several?
-            # Make b vector as a linear combination using `sum`
-            b = sum(b0[i] * I[i] for i in range(self.L))
-            w = Function(W)  # Define a zero function based in W
-            U_vec = w.vector()  # Return a vector (x = U)
-
-            # Solve system AU = b
-            U_vec[:] = scipy.sparse.linalg.spsolve(A, b[:])
+        for j in range(num_patterns):
+            b_vec.set_local(B_np[j])
+            b_vec.apply("insert")
+            solver.solve(x_vec, b_vec)
+            U_vec_val = x_vec.get_local()
 
             # Append the results in the list
             u_aux = Function(V_FuncSpace)
-            u_aux.vector()[:] = w.vector().vec()[dm0.dofs()]
+            u_aux.vector()[:] = U_vec_val[dm0.dofs()]
             u_list.append(u_aux)
-            U_list.append(w.vector().vec()[dm1.dofs()])
+            U_list.append(U_vec_val[dm1.dofs()])
 
         return np.array(u_list), np.array(U_list)
 
@@ -191,13 +228,13 @@ class ElectrodeDomain(SubDomain):
     are defined and marks the mesh.
     """
 
-    def __init__(self, mesh_vertex, L):
+    def __init__(self, mesh_vertex, num_electrodes):
         # Observe that mesh_vertex corresponds to electrode i.
         super().__init__()
         self.mesh_vertex = np.array(
             mesh_vertex
         ).T  # Getting electrode vertices from the mesh
-        self.L = L  # Setting the number of electrodes
+        self.num_electrodes = num_electrodes
         self.X = np.max(self.mesh_vertex[0])  # Max value axis x
         self.X1 = np.min(self.mesh_vertex[0])  # Min value axis x
         self.Y = np.max(self.mesh_vertex[1])  # Max value axis y

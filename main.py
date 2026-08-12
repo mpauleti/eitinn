@@ -16,16 +16,16 @@ def main(plot_iterations=False) -> None:
     Path("residuals").mkdir(parents=True, exist_ok=True)
 
     # Mesh parameters
-    resolution = 26  # Mesh resolution
-    N_in = 20  # Number of vertices on electrodes
-    N_out = 8  # Number of vertices on gaps
+    resolution = 26
+    num_elec_vertices = 20
+    num_gap_vertices = 8
 
     # Defining mesh
-    elec_mesh = feit.msd.get_tank_mesh(resolution, N_in, N_out)
+    elec_mesh = feit.msd.get_tank_mesh(resolution, num_elec_vertices, num_gap_vertices)
 
     feit.mesh.print_mesh_config(elec_mesh)
 
-    # Plotting mesh
+    # Plotting the mesh
     fplot.plot_electrodes_mesh(
         elec_mesh,
         save=True,
@@ -38,16 +38,19 @@ def main(plot_iterations=False) -> None:
         filename=Path("electrodes-mesh") / "electrodes_mesh_tank.pdf",
     )
 
-    # Defining impedances, experiments and currents
+    # Background conductivity and contact impedance
     background_value = feit.msd.BACK_COND
     z = feit.msd.Z_IMP
+
+    # Defining experiments
+    exp_cases = ["2_3", "4_1", "4_4"]
+
+    # Defining regularization term
+    methods = ["Lp|p=2", "TV|p=2", "TV|p=1.1"]
 
     # Iteration limits
     step_limit = 20
     inner_step_limit = 300
-
-    exp_cases = ["2_3", "4_1", "4_4"]
-    methods = ["Lp|p=2", "TV1|p=2", "TV1|p=1.1"]
 
     if plot_iterations:
         Path("reconstructions", "iterations").mkdir(parents=True, exist_ok=True)

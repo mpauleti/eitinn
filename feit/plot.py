@@ -18,7 +18,7 @@ def plot_functions(
     single_figsize=(4.8, 4.8),
     fig_max_cols=5,
     mesh_display: Literal["nil", "thin", "thick"] = "nil",
-    linewidth_mesh=0.5,  # only used when mesh_display == "thick"
+    linewidth_mesh=0.5,  # Only used when mesh_display == "thick"
     with_colorbar=True,
     colorbar_fontsize=10,
     colorbar_display: Literal["ind", "all"] = "ind",
@@ -136,7 +136,7 @@ def plot_reconstructions(
     single_figsize=(4.8, 4.8),
     fig_max_cols=5,
     mesh_display: Literal["nil", "thin", "thick"] = "nil",
-    linewidth_mesh=0.5,  # only used when mesh_display == "thick"
+    linewidth_mesh=0.5,  # Only used when mesh_display == "thick"
     with_colorbar=True,
     colorbar_fontsize=10,
     colorbar_display: Literal["ind", "all"] = "ind",
