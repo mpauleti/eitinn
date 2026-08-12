@@ -45,7 +45,7 @@ saved in the `reconstructions/iterations/` directory.
 You can estimate the background conductivity and contact impedance by running:
 
 ```sh
-python3 cond_z_estimation.py
+python3 estimate_background_and_impedance.py
 ```
 
 
