@@ -57,6 +57,9 @@ def main(plot_iterations=False) -> None:
 
     start_all = perf_counter()
     for exp_case in exp_cases:
+        print()
+        print(f"--- Experiment Case {exp_case.replace('_', '.')} ---")
+
         # Load experimental data
         U_delta, I_all = feit.msd.get_data_from_experiment(exp_case)
 
@@ -66,6 +69,9 @@ def main(plot_iterations=False) -> None:
         gamma_recs = []
         residual_list = []
         for method in methods:
+            print()
+            print(f"--- Running Method: {method} ---")
+
             inner_method, pp = method.split("|")
             pp = float(pp.split("=")[1])
 
@@ -178,6 +184,8 @@ def main(plot_iterations=False) -> None:
         )
 
     end_all = perf_counter()
+
+    print()
     print(f"Elapsed time (ALL): {end_all - start_all:.4f}")
 
 
