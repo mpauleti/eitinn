@@ -235,10 +235,11 @@ class ElectrodeDomain(SubDomain):
             mesh_vertex
         ).T  # Getting electrode vertices from the mesh
         self.num_electrodes = num_electrodes
-        self.X = np.max(self.mesh_vertex[0])  # Max value axis x
+
         self.X1 = np.min(self.mesh_vertex[0])  # Min value axis x
+        self.X = np.max(self.mesh_vertex[0])  # Max value axis x
+        self.Y1 = np.min(self.mesh_vertex[1])  # Min value axis y
         self.Y = np.max(self.mesh_vertex[1])  # Max value axis y
-        self.Y1 = np.min(self.mesh_vertex[1])  # Max value axis y
 
     # CANNOT rename this function to something like `is_inside`.
     # FEniCS requires it to be called `inside` for using `mark()`.

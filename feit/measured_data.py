@@ -108,18 +108,19 @@ def calc_noise_level(U_noised: np.ndarray, I: np.ndarray, *, ord_="fro") -> floa
     return noise_level
 
 
-def estimate_cond_iter(U0, I_all, elec_mesh, z=None, *, zmin=1e-4, ord_=2):
+def estimate_cond_imp(U0, I_all, elec_mesh, *, zmin=1e-4, ord_=2):
+    """
+    Estimate the background conductivity and a contact impedance
+    common to all electrodes from experimental measurements.
+    Returns a tuple with conductivity and impedance estimates.
+    """
     Q_DG = FunctionSpace(elec_mesh, "DG", 0)
     # Solution space CG (Continuous Galerkin)
     VD = FiniteElement("CG", elec_mesh.ufl_cell(), 1)
 
-    if z is None:
-        _, num_electrodes = np.shape(I_all)
-        z = np.full(num_electrodes, zmin)
-
     # Define the functional
-    def func(zi, U0, I_all, elec_mesh, z, ord_):
-        cond, z = estimate_cond(U0, I_all, elec_mesh, zi)
+    def func(zi, U0, I_all, elec_mesh, ord_):
+        cond, z = estimate_cond_imp_helper(U0, I_all, elec_mesh, zi)
         z = np.maximum(zmin, z)
 
         gamma = Function(Q_DG)
@@ -139,18 +140,18 @@ def estimate_cond_iter(U0, I_all, elec_mesh, z=None, *, zmin=1e-4, ord_=2):
         func,
         zmin,
         method="BFGS",
-        args=(U0, I_all, elec_mesh, z, ord_),
+        args=(U0, I_all, elec_mesh, ord_),
     )
     z = result["x"]
 
-    cond, z = estimate_cond(U0, I_all, elec_mesh, z)
+    cond, z = estimate_cond_imp_helper(U0, I_all, elec_mesh, z)
     return cond, z
 
 
-def estimate_cond(U0, I_all, elec_mesh, z, *, is_kuopio_tank=True):
+def estimate_cond_imp_helper(U0, I_all, elec_mesh, z, *, is_kuopio_tank=True):
     """
-    Estimate the conductivity of the background based on noisy voltage measurements.
-    Returns a tuple with conductivity and potential estimates.
+    Perform a single-step linearized estimate of background conductivity
+    and contact impedance via non-negative least squares (NNLS).
     """
     Q_DG = FunctionSpace(elec_mesh, "DG", 0)
     # Solution space CG (Continuous Galerkin)

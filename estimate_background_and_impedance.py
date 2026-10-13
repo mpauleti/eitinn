@@ -13,7 +13,7 @@ def main() -> None:
     U0_bg, I_all = feit.msd.get_data_from_experiment("1_0")
 
     print("Estimating...")
-    cond, z = feit.msd.estimate_cond_iter(U0_bg, I_all, elec_mesh)
+    cond, z = feit.msd.estimate_cond_imp(U0_bg, I_all, elec_mesh)
 
     print(f"Background conductivity estimation: {cond:.15f}")
     print(f"Contact impedance estimation: {z:.15f}")
