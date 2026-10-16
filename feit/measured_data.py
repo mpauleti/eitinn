@@ -3,7 +3,7 @@ from pathlib import Path
 import numpy as np
 import scipy.io as spio
 import scipy.optimize
-from fenics import FiniteElement, Function, FunctionSpace
+from fenics import Constant, FiniteElement
 
 from . import mesh as fmesh
 from .forward_problem import ForwardProblem
@@ -14,8 +14,8 @@ from .forward_problem import ForwardProblem
 #   num_elec_vertices = 20
 #   num_gap_vertices  = 8
 # For other values, you may run `estimate_background_and_impedance.py`.
-BACK_COND = 0.927201922207184  # Background conductivity
-Z_IMP = 0.011067821315443  # Impedance of each electrode
+BACK_COND = 0.927201922445648  # Background conductivity
+Z_IMP = 0.011067818554421  # Impedance of each electrode
 
 
 def get_tank_mesh(resolution, num_elec_vertices, num_gap_vertices):
@@ -114,21 +114,20 @@ def estimate_cond_imp(U0, I_all, elec_mesh, *, zmin=1e-4, ord_=2):
     common to all electrodes from experimental measurements.
     Returns a tuple with conductivity and impedance estimates.
     """
-    Q_DG = FunctionSpace(elec_mesh, "DG", 0)
     # Solution space CG (Continuous Galerkin)
     VD = FiniteElement("CG", elec_mesh.ufl_cell(), 1)
 
+    # A single forward problem is reused for all evaluations,
+    # only its contact impedance `z` is updated.
+    fp = ForwardProblem(elec_mesh, zmin)
+
     # Define the functional
-    def func(zi, U0, I_all, elec_mesh, ord_):
-        cond, z = estimate_cond_imp_helper(U0, I_all, elec_mesh, zi)
-        z = np.maximum(zmin, z)
+    def func(zi, U0, I_all, ord_):
+        cond, z = estimate_cond_imp_helper(U0, I_all, fp, zi)
+        fp.z = np.maximum(zmin, z)
 
-        gamma = Function(Q_DG)
-        gamma.vector()[:] = np.full(elec_mesh.num_cells(), cond, dtype=float)
-
-        fp = ForwardProblem(elec_mesh, z)
-
-        _, U_arr = fp.solve_forward(VD, I_all, gamma)
+        # Homogeneous conductivity
+        _, U_arr = fp.solve_forward(VD, I_all, Constant(cond))
         U_arr = U_arr.flatten()
 
         residual = (
@@ -140,31 +139,30 @@ def estimate_cond_imp(U0, I_all, elec_mesh, *, zmin=1e-4, ord_=2):
         func,
         zmin,
         method="BFGS",
-        args=(U0, I_all, elec_mesh, ord_),
+        args=(U0, I_all, ord_),
     )
     z = result["x"]
 
-    cond, z = estimate_cond_imp_helper(U0, I_all, elec_mesh, z)
+    cond, z = estimate_cond_imp_helper(U0, I_all, fp, z)
     return cond, z
 
 
-def estimate_cond_imp_helper(U0, I_all, elec_mesh, z, *, is_kuopio_tank=True):
+def estimate_cond_imp_helper(U0, I_all, fp, z, *, is_kuopio_tank=True):
     """
     Perform a single-step linearized estimate of background conductivity
     and contact impedance via non-negative least squares (NNLS).
+    The forward problem `fp` is solved with unit conductivity and
+    contact impedance `z` (note: `fp.z` is overwritten).
     """
-    Q_DG = FunctionSpace(elec_mesh, "DG", 0)
+    elec_mesh = fp.mesh
     # Solution space CG (Continuous Galerkin)
     VD = FiniteElement("CG", elec_mesh.ufl_cell(), 1)
 
     num_patterns, num_electrodes = np.shape(I_all)
     U0 = U0.reshape(num_patterns, num_electrodes)
 
-    gamma = Function(Q_DG)
-    gamma.vector()[:] = np.ones(elec_mesh.num_cells())
-
-    fp = ForwardProblem(elec_mesh, z)
-    _, U = fp.solve_forward(VD, I_all, gamma)
+    fp.z = z
+    _, U = fp.solve_forward(VD, I_all, Constant(1.0))
 
     z0 = np.max(z)
 

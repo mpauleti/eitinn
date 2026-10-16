@@ -32,6 +32,10 @@ class ForwardProblem:
         self.radius = elec_mesh.radius
         self.elec_pos = elec_mesh.electrodes.position
         self.num_electrodes = len(self.elec_pos)
+        # Inverse contact impedances (1/z_i) used in the forms.
+        # Using `Constant` instead of floats avoids JIT recompilation
+        # of the forms whenever `z` changes.
+        self.__zinv = [Constant(1.0) for _ in range(self.num_electrodes)]
         self.z = z
         # See the function below, which uses the ElectrodeDomain class
         # to set the electrodes region.
@@ -45,23 +49,26 @@ class ForwardProblem:
     @z.setter
     def z(self, value):
         if isinstance(value, float):
-            self.__z = np.full(self.num_electrodes, value)
-            return
-        if not isinstance(value, np.ndarray):
+            z = np.full(self.num_electrodes, value)
+        elif not isinstance(value, np.ndarray):
             raise TypeError("`z` must be a float or 1D np.ndarray.")
-        if value.ndim == 1 and len(value) == 1:
+        elif value.ndim == 1 and len(value) == 1:
             value = value[0]
             if not isinstance(value, float):
                 raise TypeError("`z` must be a float or 1D np.ndarray.")
-            self.__z = np.full(self.num_electrodes, value)
-            return
-        if value.shape != (self.num_electrodes,):
+            z = np.full(self.num_electrodes, value)
+        elif value.shape != (self.num_electrodes,):
             raise ValueError(
                 "`z` must have shape `(num_electrodes,)` "
                 f"(num_electrodes = {self.num_electrodes}), "
                 f"but got an array with shape {value.shape}."
             )
-        self.__z = np.array(value, dtype=float)
+        else:
+            z = np.array(value, dtype=float)
+
+        self.__z = z
+        for zinv_i, z_i in zip(self.__zinv, z, strict=True):
+            zinv_i.assign(1 / z_i)
 
     def __electrodes(self):
         """
@@ -176,7 +183,7 @@ class ForwardProblem:
 
         # Integral((1/zi) * (u - U_i) * (v - V_i)) d(electrode_i)
         A_imp_form = sum(
-            (1 / self.z[i]) * A_imp_0_forms[i] for i in range(self.num_electrodes)
+            self.__zinv[i] * A_imp_0_forms[i] for i in range(self.num_electrodes)
         )
 
         # Make matrix to solve Ax = b
