@@ -76,10 +76,7 @@ If you use this program in your work, please cite:
   year         = 2026,
   month        = {05},
   journal      = {IMA Journal of Numerical Analysis},
-  pages        = {drag026},
-  doi          = {10.1093/imanum/drag026},
   issn         = {0272-4979},
   url          = {https://doi.org/10.1093/imanum/drag026},
-  eprint       = {https://academic.oup.com/imajna/advance-article-pdf/doi/10.1093/imanum/drag026/68438276/drag026.pdf},
 }
 ```
