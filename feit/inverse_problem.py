@@ -224,7 +224,8 @@ class InverseProblem(ForwardProblem):
             xi_nk -= lamb_nk * w_nk
             x_nk = self.grad_conjugate(xi_nk, x0=x_nk)
 
-            x_nk, xi_nk = self.filter_low_values(x_nk, xi_nk)
+            # Ensure values are bounded away from zero
+            x_nk = np.maximum(x_nk, self.min_v)
 
             linear_diff = A_n @ (x_nk - x_n) - b_n
             linear_res = self.lp_norm(linear_diff, "dOmega", ord_=r)
@@ -246,15 +247,6 @@ class InverseProblem(ForwardProblem):
         kmax = inner_steps[step - 1] + inner_steps[step - 2]
         # kmax = np.minimum(kmax, self.inner_step_limit)
         return kmax
-
-    def filter_low_values(self, x, xi):
-        # Ensure values are not too close to zero
-        mask = x < self.min_v
-        if np.any(mask):
-            x[mask] = self.min_v
-            xi = self.__primal_to_dual(x)
-
-        return x, xi
 
     def grad_conjugate(self, xi, *, x0):
         """Computes the gradient of the conjugate function, grad(f*)."""
